@@ -95,12 +95,16 @@ gcloud run deploy tohsevent \
   --region asia-southeast1 \
   --allow-unauthenticated \
   --port 8080 \
-  --cpu 1 --memory 512Mi \
+  --cpu 1 --memory 1Gi \
   --concurrency 80 \
   --min-instances 0 --max-instances 10 \
   --set-env-vars "APP_ORIGIN=https://tohsevent.com,MONGODB_DB=tohsevent,R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com,R2_ACCESS_KEY_ID=<KEY_ID>,R2_BUCKET=tohsevent-prod,R2_PUBLIC_BASE_URL=https://media.tohsevent.com" \
   --set-secrets "MONGODB_URI=mongodb-uri:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,SESSION_SECRET=session-secret:latest,AUTH_SECRET=auth-secret:latest,CRON_SECRET=cron-secret:latest"
 ```
+
+หน่วยความจำ 1 GiB เผื่อ ffmpeg ที่ตัดภาพตัวอย่างวิดีโอ (คลิป 4K HEVC จาก iPhone) ใน instance เดียวกับ Node
+(ตั้งเมื่อ 18 ต.ค. 2026 ด้วย `gcloud run services update tohsevent --region asia-southeast1 --memory 1Gi`
+GitHub Actions deploy เปลี่ยนแค่ image จึงคงค่านี้ไว้)
 
 - **วันจัดงานจริง**: ตั้ง `--min-instances 1` ไว้ก่อนงานเริ่ม จะได้ไม่เจอ cold start ตอนแขกสแกน QR พร้อมกัน
 - Health check: `GET /api/healthz` จะ ping MongoDB (ใช้เป็น startup/liveness probe ได้)
