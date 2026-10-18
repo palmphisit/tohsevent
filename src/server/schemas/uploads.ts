@@ -17,6 +17,8 @@ const fileSchema = z.object({
       contentType: z.enum(VIDEO_CONTENT_TYPES),
       bytes: z.number().int().positive().max(UPLOAD_LIMITS.maxBytes.video),
       durationSec: z.number().positive().max(60 * 60),
+      /** The browser could not draw a frame, so the poster is a placeholder. */
+      posterFallback: z.literal(true).optional(),
     })
     .optional(),
 });

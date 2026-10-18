@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lightbox } from "@/components/lightbox";
-import { VideoBadge } from "@/components/video-badge";
+import { MediaThumb } from "@/components/media-thumb";
 import { Uploader, type UploadTarget } from "@/components/uploader";
 import { uploadOriginal } from "@/lib/original-upload";
 import type { VideoLimits } from "@/lib/video";
@@ -236,14 +236,7 @@ function ModerationGrid({
         {photos.map((photo, i) => (
           <li key={photo.id} className="overflow-hidden rounded-xl border border-slate-200">
             <button type="button" onClick={() => setOpenIndex(i)} className="relative block aspect-square w-full bg-slate-100">
-              {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
-              <img
-                src={photo.thumbUrl}
-                alt=""
-                loading="lazy"
-                className={`h-full w-full object-cover ${photo.status === "hidden" ? "opacity-40 grayscale" : ""}`}
-              />
-              {photo.kind === "video" && <VideoBadge durationSec={photo.durationSec} />}
+              <MediaThumb photo={photo} className={photo.status === "hidden" ? "opacity-40 grayscale" : ""} />
               <div className="absolute top-2 left-2 flex gap-1">
                 {photo.autoFlagged ? (
                   <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs text-white">AI ซ่อนไว้รอตรวจ</span>

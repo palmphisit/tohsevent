@@ -24,7 +24,7 @@ export interface UploadRequestFile {
   height: number;
   takenAt?: string;
   /** Video item: the clip itself; display/thumb are its poster frames. */
-  video?: { contentType: VideoContentType; bytes: number; durationSec: number };
+  video?: { contentType: VideoContentType; bytes: number; durationSec: number; posterFallback?: true };
 }
 
 const VIDEO_EXTENSIONS: Record<VideoContentType, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" };
@@ -143,7 +143,11 @@ async function createPendingPhotos(
     };
     if (clip) {
       doc.kind = "video";
-      doc.video = { contentType: clip.contentType, durationSec: clip.durationSec };
+      doc.video = {
+        contentType: clip.contentType,
+        durationSec: clip.durationSec,
+        ...(clip.posterFallback ? { posterFallback: true } : {}),
+      };
       doc.keys.video = `events/${event._id.toHexString()}/photos/${folder}/video.${VIDEO_EXTENSIONS[clip.contentType]}`;
       doc.bytes.video = clip.bytes;
     }
@@ -271,6 +275,8 @@ export interface PublicPhoto {
   /** Video items only: the clip (thumb/display URLs are its poster frames). */
   videoUrl?: string;
   durationSec?: number;
+  /** The stored poster is a placeholder: galleries should let the browser draw a frame. */
+  posterFallback?: boolean;
 }
 
 /**
@@ -295,7 +301,11 @@ export function toPublicPhoto(
     createdAt: photo.createdAt.toISOString(),
     kind: photo.kind ?? "photo",
     ...(photo.keys.video && photo.video
-      ? { videoUrl: publicUrl(photo.keys.video), durationSec: Math.round(photo.video.durationSec) }
+      ? {
+          videoUrl: publicUrl(photo.keys.video),
+          durationSec: Math.round(photo.video.durationSec),
+          ...(photo.video.posterFallback ? { posterFallback: true } : {}),
+        }
       : {}),
     ...(options.viewerId?.equals(photo.uploader.id) ? { mine: true } : {}),
     ...(photo.status === "hidden" && photo.autoModeration?.flagged ? { pendingReview: true } : {}),

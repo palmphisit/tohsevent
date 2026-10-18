@@ -1,4 +1,4 @@
-import { ChevronRight, CreditCard, Images, Palette } from "lucide-react";
+import { ChevronRight, CreditCard, Images, MonitorPlay, Palette } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { qrSvg } from "@/server/qr";
@@ -68,6 +68,12 @@ async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">
               icon={<Palette className="h-5 w-5" />}
               title="ปรับแต่งหน้างาน"
               text="สี ฟอนต์ โลโก้ รูปปก และผู้สนับสนุน (Premium)"
+            />
+            <ActionCard
+              href={`/dashboard/events/${event.id}/slideshow`}
+              icon={<MonitorPlay className="h-5 w-5" />}
+              title="Slideshow บนจอ"
+              text="รูปไหลขึ้นจอในงานแบบเรียลไทม์ พร้อม QR ให้แขกสแกน"
             />
           </>
         )}
@@ -145,7 +151,7 @@ function ActionCard({
   return (
     <Link
       href={href}
-      className="flex items-center gap-4 rounded-2xl bg-white px-4 py-4 ring-1 ring-slate-200 transition hover:shadow-sm hover:ring-blue-200"
+      className="flex min-w-0 items-center gap-4 rounded-2xl bg-white px-4 py-4 ring-1 ring-slate-200 transition hover:shadow-sm hover:ring-blue-200"
     >
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">{icon}</span>
       <span className="min-w-0 flex-1">

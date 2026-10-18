@@ -32,6 +32,8 @@ export interface EventDoc {
   expiryReminderSentAt?: Date | null;
   /** People invited to work on the event besides the owner (photographers). */
   members?: EventMember[];
+  /** Big-screen slideshow look; missing = defaults (see services/slideshow.ts). */
+  slideshow?: SlideshowDoc;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,6 +64,27 @@ export interface SponsorDoc {
   name: string;
   imageKey: string;
   linkUrl: string | null;
+}
+
+export const SLIDESHOW_LAYOUTS = ["spotlight", "wall"] as const;
+export const SLIDESHOW_THEMES = ["dark", "light", "brand"] as const;
+export const SLIDESHOW_SOURCES = ["all", "guest", "official"] as const;
+
+export interface SlideshowDoc {
+  layout: (typeof SLIDESHOW_LAYOUTS)[number];
+  theme: (typeof SLIDESHOW_THEMES)[number];
+  sources: (typeof SLIDESHOW_SOURCES)[number];
+  /** Shown instead of the event title when set. */
+  headline: string | null;
+  message: string | null;
+  qrCaption: string | null;
+  showQr: boolean;
+  showDate: boolean;
+  showUploader: boolean;
+  panelSide: "left" | "right";
+  /** Seconds each photo stays on screen (spotlight) / speed of the wall. */
+  intervalSec: number;
+  updatedAt: Date;
 }
 
 export interface BrandingDoc {
@@ -125,7 +148,7 @@ export interface PhotoDoc {
   bytes: Record<RequiredVariant, number> & { watermarked?: number; video?: number };
   /** "video": display/thumb are poster frames and `keys.video` holds the clip. Missing = photo. */
   kind?: "photo" | "video";
-  video?: { contentType: VideoContentType; durationSec: number };
+  video?: { contentType: VideoContentType; durationSec: number; posterFallback?: boolean };
   width: number;
   height: number;
   takenAt: Date | null;

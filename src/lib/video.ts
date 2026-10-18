@@ -76,6 +76,65 @@ function placeholderPoster(width: number, height: number): HTMLCanvasElement {
   return canvas;
 }
 
+/** Resolves once the frame at the current position has been painted (or after a short wait). */
+function framePainted(video: HTMLVideoElement): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, 1_000);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(() => done());
+    else requestAnimationFrame(() => requestAnimationFrame(done));
+  });
+}
+
+/** True when the canvas is (almost) uniformly black, i.e. the browser gave us no real frame. */
+function isBlank(canvas: HTMLCanvasElement): boolean {
+  const probe = draw(canvas, 16, 16);
+  const data = probe.getContext("2d")!.getImageData(0, 0, 16, 16).data;
+  probe.width = probe.height = 0;
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 4) sum += data[i] + data[i + 1] + data[i + 2];
+  return sum / (data.length / 4) / 3 < 6;
+}
+
+async function seek(video: HTMLVideoElement, time: number) {
+  video.currentTime = time;
+  await once(video, "seeked", 10_000);
+  await framePainted(video);
+}
+
+/**
+ * Grabs a poster frame. Seeking is enough on desktop browsers; iOS Safari often paints
+ * nothing until the clip has actually played, so we fall back to a short muted play.
+ */
+async function grabFrame(video: HTMLVideoElement, durationSec: number): Promise<HTMLCanvasElement | null> {
+  const size = () => fit(video.videoWidth || 1280, video.videoHeight || 720, IMAGE_VARIANTS.display.maxEdge);
+  const attempts = [Math.min(0.5, durationSec / 2), durationSec * 0.25, durationSec * 0.5];
+  let canvas: HTMLCanvasElement | null = null;
+  for (const time of attempts) {
+    try {
+      await seek(video, time);
+    } catch {
+      continue;
+    }
+    canvas = draw(video, size().width, size().height);
+    if (!isBlank(canvas)) return canvas;
+  }
+  try {
+    await video.play();
+    await once(video, "timeupdate", 3_000);
+    video.pause();
+    await framePainted(video);
+    canvas = draw(video, size().width, size().height);
+    if (!isBlank(canvas)) return canvas;
+  } catch {
+    // autoplay refused or nothing decodes: fall through
+  }
+  return null;
+}
+
 /**
  * Reads duration and a poster frame, checks the plan limits, and returns the same shape as
  * prepareImage so the upload queue treats videos like photos.
@@ -91,33 +150,31 @@ export async function prepareVideo(file: Blob, limits: VideoLimits | null): Prom
   video.muted = true;
   video.playsInline = true;
   video.preload = "auto";
+  // Safari only decodes frames for videos that are in the document.
+  video.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none";
+  document.body.appendChild(video);
   video.src = url;
   try {
-    let durationSec: number;
-    let poster: HTMLCanvasElement;
     try {
       await once(video, "loadedmetadata", 15_000);
-      durationSec = video.duration;
-      if (!Number.isFinite(durationSec)) {
-        // Some WebM recordings report Infinity until the end has been seen.
-        video.currentTime = 1e7;
-        await once(video, "seeked", 15_000);
-        durationSec = video.duration;
-      }
-      if (durationSec > limits.maxDurationSec + 1) throw new VideoRejected("video_too_long");
-      video.currentTime = Math.min(0.5, durationSec / 2);
-      await once(video, "seeked", 15_000);
-      const size = fit(video.videoWidth || 1280, video.videoHeight || 720, IMAGE_VARIANTS.display.maxEdge);
-      poster = draw(video, size.width, size.height);
-    } catch (error) {
-      if (error instanceof VideoRejected) throw error;
-      // Metadata loaded but no frame decodes in this browser (e.g. HEVC): keep the clip, use a
-      // placeholder poster. Without a known duration we cannot check the limit, so reject.
-      if (!Number.isFinite(video.duration) || video.duration <= 0) throw new VideoRejected("video_unsupported");
-      durationSec = video.duration;
-      if (durationSec > limits.maxDurationSec + 1) throw new VideoRejected("video_too_long");
-      poster = placeholderPoster(1280, 720);
+    } catch {
+      throw new VideoRejected("video_unsupported");
     }
+    let durationSec = video.duration;
+    if (!Number.isFinite(durationSec)) {
+      // Some WebM recordings report Infinity until the end has been seen.
+      video.currentTime = 1e7;
+      await once(video, "seeked", 15_000).catch(() => {});
+      durationSec = video.duration;
+      video.currentTime = 0;
+    }
+    if (!Number.isFinite(durationSec) || durationSec <= 0) throw new VideoRejected("video_unsupported");
+    if (durationSec > limits.maxDurationSec + 1) throw new VideoRejected("video_too_long");
+
+    // No decodable frame here (e.g. HEVC on desktop Chrome): keep the clip with a placeholder
+    // poster; galleries then let the viewer's browser draw the frame itself.
+    const frame = await grabFrame(video, durationSec);
+    const poster = frame ?? placeholderPoster(1280, 720);
 
     const thumbSize = fit(poster.width, poster.height, IMAGE_VARIANTS.thumb.maxEdge);
     const thumbCanvas = draw(poster, thumbSize.width, thumbSize.height);
@@ -128,10 +185,18 @@ export async function prepareVideo(file: Blob, limits: VideoLimits | null): Prom
     const width = poster.width;
     const height = poster.height;
     for (const c of [poster, thumbCanvas]) c.width = c.height = 0;
-    return { display, thumb, width, height, video: { blob: file, contentType, durationSec } };
+    return {
+      display,
+      thumb,
+      width,
+      height,
+      video: { blob: file, contentType, durationSec, ...(frame ? {} : { posterFallback: true }) },
+    };
   } finally {
+    video.pause();
     video.removeAttribute("src");
     video.load();
+    video.remove();
     URL.revokeObjectURL(url);
   }
 }

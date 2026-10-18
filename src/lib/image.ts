@@ -16,7 +16,7 @@ export interface PreparedImage {
   width: number;
   height: number;
   /** Video items: the clip itself, uploaded as-is; display/thumb are its poster frames (see lib/video.ts). */
-  video?: { blob: Blob; contentType: VideoContentType; durationSec: number };
+  video?: { blob: Blob; contentType: VideoContentType; durationSec: number; posterFallback?: boolean };
 }
 
 export const WATERMARK_TEXT = "Tohs Event";

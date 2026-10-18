@@ -7,9 +7,10 @@ import type { BrandingAsset, BrandingAssetKind, BrandingEditorState, SaveBrandin
 import type { InviteView, MemberView } from "@/server/services/members";
 import type { HostPhoto, HostPhotoView } from "@/server/services/moderation";
 import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
+import type { SlideshowSettings } from "@/server/services/slideshow";
 import type { PreparedImage } from "./image";
 
-export type { InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
+export type { SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -71,6 +72,7 @@ function uploadBody(image: PreparedImage): string {
                 contentType: image.video.contentType,
                 bytes: image.video.blob.size,
                 durationSec: Math.round(image.video.durationSec * 10) / 10,
+                ...(image.video.posterFallback ? { posterFallback: true } : {}),
               },
             }
           : {}),
@@ -245,4 +247,25 @@ export function revokeEventInvite(eventId: string, inviteId: string) {
 
 export function acceptInvite(token: string) {
   return request<{ eventId: string }>(`/api/v1/invites/${encodeURIComponent(token)}/accept`, { method: "POST" });
+}
+
+// ---- Venue slideshow ----
+
+export function listSlideshowPhotos(
+  slug: string,
+  params: { key?: string | null; sources?: SlideshowSettings["sources"]; limit?: number },
+) {
+  const query = new URLSearchParams({ limit: String(params.limit ?? 60) });
+  if (params.key) query.set("key", params.key);
+  if (params.sources) query.set("sources", params.sources);
+  return request<{ items: PublicPhoto[]; total: number; settings: SlideshowSettings }>(`${base(slug)}/slideshow?${query}`, {
+    cache: "no-store",
+  });
+}
+
+export function saveSlideshow(eventId: string, input: SlideshowSettings) {
+  return request<{ slideshow: SlideshowSettings }>(`${hostBase(eventId)}/slideshow`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 }

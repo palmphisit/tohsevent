@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Camera, ImagePlus } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
-import { VideoBadge } from "@/components/video-badge";
+import { MediaThumb } from "@/components/media-thumb";
 import { listPhotos, type PublicPhoto } from "@/lib/api-client";
 import { DeleteMyPhotoButton, ReportPhotoButton, SavePhotoButton } from "./photo-actions";
 
@@ -150,14 +150,7 @@ function PhotoGrid({
         {visible.map((photo, i) => (
           <li key={photo.id} className="aspect-square overflow-hidden bg-slate-100">
             <button type="button" onClick={() => setOpenIndex(i)} className="relative block h-full w-full">
-              {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
-              <img
-                src={photo.thumbUrl}
-                alt={photo.uploaderName ? `รูปจาก ${photo.uploaderName}` : "รูปในงาน"}
-                loading="lazy"
-                className="h-full w-full object-cover"
-              />
-              {photo.kind === "video" && <VideoBadge durationSec={photo.durationSec} />}
+              <MediaThumb photo={photo} alt={photo.uploaderName ? `รูปจาก ${photo.uploaderName}` : "รูปในงาน"} />
             </button>
           </li>
         ))}

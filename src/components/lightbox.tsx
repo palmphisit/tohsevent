@@ -68,7 +68,7 @@ export function Lightbox<P extends PublicPhoto>({
           <video
             key={photo.id}
             src={photo.videoUrl}
-            poster={photo.displayUrl}
+            poster={photo.posterFallback ? undefined : photo.displayUrl}
             controls
             playsInline
             preload="metadata"
