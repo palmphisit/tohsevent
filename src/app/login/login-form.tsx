@@ -7,7 +7,7 @@ import { authClient } from "@/lib/auth-client";
 type Mode = "sign-in" | "sign-up";
 
 const inputClass =
-  "w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-zinc-900";
+  "w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 /** Only allow redirects back into the app (never to another origin). */
 function safeNext(next: string | null): string {
@@ -53,7 +53,7 @@ export function LoginForm() {
 
   return (
     <>
-      <div role="tablist" className="mt-6 flex gap-1 rounded-xl bg-zinc-100 p-1">
+      <div role="tablist" className="mt-6 flex gap-1 rounded-xl bg-slate-100 p-1">
         {(["sign-in", "sign-up"] as const).map((m) => (
           <button
             key={m}
@@ -64,7 +64,7 @@ export function LoginForm() {
               setMode(m);
               setError(null);
             }}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${mode === m ? "bg-white shadow-sm" : "text-zinc-500"}`}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${mode === m ? "bg-white shadow-sm" : "text-slate-500"}`}
           >
             {m === "sign-in" ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
           </button>
@@ -105,7 +105,7 @@ export function LoginForm() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           disabled={pending}
-          className="w-full rounded-xl bg-zinc-900 px-4 py-3 font-medium text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-primary hover:bg-primary-hover px-4 py-3 font-medium text-white disabled:opacity-50"
         >
           {pending ? "กำลังดำเนินการ…" : mode === "sign-in" ? "เข้าสู่ระบบ" : "สร้างบัญชี"}
         </button>

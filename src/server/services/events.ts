@@ -19,6 +19,8 @@ export interface PublicEvent {
   branding: PublicBranding | null;
   /** Guests can ask for an email when official photos are ready. */
   notifyAvailable: boolean;
+  /** Video clip limits on this plan; null when only photos are allowed. */
+  video: { maxBytes: number; maxDurationSec: number } | null;
 }
 
 export function toPublicEvent(event: EventDoc): PublicEvent {
@@ -32,6 +34,7 @@ export function toPublicEvent(event: EventDoc): PublicEvent {
     watermark: planOf(event).watermark,
     branding: toPublicBranding(event),
     notifyAvailable: emailEnabled(),
+    video: planOf(event).video,
   };
 }
 

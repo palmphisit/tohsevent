@@ -1,9 +1,11 @@
 "use client";
 
+import { Camera, Video } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, putToStorage, type PublicPhoto } from "@/lib/api-client";
 import { prepareImage, type PreparedImage } from "@/lib/image";
 import { listPending, removePending, savePending, setPendingPhotoId } from "@/lib/upload-store";
+import { isVideoFile, prepareVideo, VideoRejected, type VideoLimits } from "@/lib/video";
 import type { PresignedUpload } from "@/server/services/photos";
 
 const CONCURRENCY = 2;
@@ -15,6 +17,8 @@ type Status = "queued" | "processing" | "uploading" | "original" | "done" | "err
 interface QueueItem {
   id: string;
   file: Blob;
+  /** Video clip: uploaded as-is next to poster frames; never has an original. */
+  isVideo: boolean;
   status: Status;
   error?: string;
   previewUrl?: string;
@@ -22,12 +26,21 @@ interface QueueItem {
   reservation?: { data: PresignedUpload; at: number };
   /** Set once the display/thumb copies are published; a retry then only redoes the original. */
   photoId?: string;
-  /** Original-file upload progress (0–1). */
+  /** Video clip or original-file upload progress (0–1). */
   progress?: number;
 }
 
+const VIDEO_ERRORS: Record<string, string> = {
+  video_not_allowed: "แพ็กเกจของงานนี้ยังไม่รองรับวิดีโอ",
+  video_too_large: "วิดีโอไฟล์ใหญ่เกินกำหนด",
+  video_too_long: "วิดีโอยาวเกินกำหนด",
+  video_unsupported: "ไฟล์วิดีโอนี้ไม่รองรับ",
+};
+
 function errorMessage(error: unknown): string {
+  if (error instanceof VideoRejected) return VIDEO_ERRORS[error.code];
   if (error instanceof ApiError) {
+    if (error.code in VIDEO_ERRORS) return VIDEO_ERRORS[error.code];
     if (error.code === "quota_exceeded") return "อัปโหลดครบจำนวนที่งานกำหนดแล้ว";
     if (error.code === "uploads_disabled") return "งานนี้ปิดรับรูปแล้ว";
     if (error.code === "photo_limit_reached") return "อัลบั้มนี้เต็มแล้ว";
@@ -41,15 +54,21 @@ function errorMessage(error: unknown): string {
 
 /** Errors that retrying will not fix; such files are dropped from the resume store. */
 function isPermanent(error: unknown): boolean {
+  if (error instanceof VideoRejected) return true;
   return (
     error instanceof ApiError &&
-    ["quota_exceeded", "uploads_disabled", "photo_limit_reached", "event_full"].includes(error.code)
+    ["quota_exceeded", "uploads_disabled", "photo_limit_reached", "event_full", ...Object.keys(VIDEO_ERRORS)].includes(
+      error.code,
+    )
   );
 }
 
+/** Photos only: video clips are too large to keep in the browser's storage for resuming. */
 function persistFiles(scope: string, entries: { id: string; file: File }[]) {
   const addedAt = Date.now();
-  entries.forEach((e, i) => void savePending({ id: e.id, scope, file: e.file, name: e.file.name, addedAt: addedAt + i }));
+  entries.forEach((e, i) => {
+    if (!isVideoFile(e.file)) void savePending({ id: e.id, scope, file: e.file, name: e.file.name, addedAt: addedAt + i });
+  });
 }
 
 /** Endpoints for one upload target (guest page or host dashboard); the flow is the same. */
@@ -58,6 +77,8 @@ export interface UploadTarget {
   prepare?: () => Promise<unknown>;
   /** Also produce a watermarked copy (events on the Free plan). */
   watermark?: boolean;
+  /** Video limits of the event's plan; null/undefined means photos only. */
+  video?: VideoLimits | null;
   reserve: (image: PreparedImage) => Promise<PresignedUpload>;
   complete: (photoId: string) => Promise<PublicPhoto>;
   /** Upload the untouched file as the photo's original (photographers, Premium events). */
@@ -81,28 +102,30 @@ async function uploadItem(
     update({ photoId, image: undefined, reservation: undefined });
     onPhotoReady(photo);
   }
-  if (target.uploadOriginal) {
+  if (target.uploadOriginal && !item.isVideo) {
     update({ status: "original", progress: 0, error: undefined });
     await target.uploadOriginal(photoId, item.file, (progress) => update({ progress }));
   }
 }
 
-/** Display + thumb (+ watermarked) copies: resize, reserve, PUT, complete. */
+/** Display + thumb (+ watermarked, or the video clip) copies: resize, reserve, PUT, complete. */
 async function uploadCopies(target: UploadTarget, item: QueueItem, update: (patch: Partial<QueueItem>) => void) {
   let { image, reservation } = item;
   if (!image) {
     update({ status: "processing", error: undefined });
-    image = await prepareImage(item.file, { watermark: target.watermark });
+    image = item.isVideo
+      ? await prepareVideo(item.file, target.video ?? null)
+      : await prepareImage(item.file, { watermark: target.watermark });
     update({ image, previewUrl: URL.createObjectURL(image.thumb) });
   }
 
-  update({ status: "uploading", error: undefined });
+  update({ status: "uploading", error: undefined, progress: 0 });
   if (!reservation || Date.now() - reservation.at > RESERVATION_TTL_MS) {
     reservation = { data: await target.reserve(image), at: Date.now() };
     update({ reservation });
   }
 
-  await putToStorage(reservation.data, image);
+  await putToStorage(reservation.data, image, (progress) => update({ progress }));
   return target.complete(reservation.data.photoId);
 }
 
@@ -112,7 +135,7 @@ export function Uploader({
   onUploaded,
   persistKey,
   gate,
-  label = "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด",
+  label,
 }: {
   target: UploadTarget;
   onUploaded: (photo: PublicPhoto) => void;
@@ -202,7 +225,7 @@ export function Uploader({
     const ids = entries
       .filter((entry) => !itemsRef.current.has(entry.id))
       .map(({ id, file, photoId }) => {
-        itemsRef.current.set(id, { id, file, photoId, status: "queued" });
+        itemsRef.current.set(id, { id, file, photoId, isVideo: isVideoFile(file), status: "queued" });
         return id;
       });
     setItems(Array.from(itemsRef.current.values()));
@@ -255,7 +278,7 @@ export function Uploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={target.video ? "image/*,video/mp4,video/quicktime,video/webm" : "image/*"}
         multiple
         hidden
         onChange={(e) => onFiles(e.target.files)}
@@ -266,24 +289,31 @@ export function Uploader({
           const openPicker = () => inputRef.current?.click();
           if (!gate || gate(openPicker)) openPicker();
         }}
-        className="w-full rounded-xl bg-brand px-4 py-4 text-lg font-medium text-brand-contrast active:scale-[0.99]"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-4 text-lg font-medium text-brand-contrast shadow-lg shadow-black/5 transition hover:opacity-95 active:scale-[0.99]"
       >
-        {label}
+        {target.video ? <Video className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
+        {label ?? (target.video ? "ถ่าย / เลือกรูปหรือวิดีโอ" : "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด")}
       </button>
+      {target.video && (
+        <p className="mt-2 text-center text-xs text-slate-500">
+          วิดีโอยาวไม่เกิน {Math.round(target.video.maxDurationSec)} วินาที · ไฟล์ไม่เกิน{" "}
+          {Math.round(target.video.maxBytes / 1024 / 1024)} MB
+        </p>
+      )}
 
       {items.length > 0 && (
-        <div className="mt-3 rounded-xl border border-zinc-200 p-3">
+        <div className="mt-3 rounded-xl border border-slate-200 p-3">
           {restoredCount > 0 && (
-            <p className="mb-1 text-sm text-zinc-600">กำลังอัปโหลดต่อ {restoredCount} รูปที่ค้างจากครั้งก่อน</p>
+            <p className="mb-1 text-sm text-slate-600">กำลังอัปโหลดต่อ {restoredCount} ไฟล์ที่ค้างจากครั้งก่อน</p>
           )}
-          <p className="text-sm text-zinc-600">
-            อัปโหลดแล้ว {doneCount}/{items.length} รูป
-            {inFlight && <span className="text-zinc-400"> · อย่าเพิ่งปิดหน้านี้</span>}
+          <p className="text-sm text-slate-600">
+            อัปโหลดแล้ว {doneCount}/{items.length} ไฟล์
+            {inFlight && <span className="text-slate-400"> · อย่าเพิ่งปิดหน้านี้</span>}
           </p>
           {pendingItems.length > 0 && (
             <ul className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
               {pendingItems.map((item) => (
-                <li key={item.id} className="relative aspect-square overflow-hidden rounded-lg bg-zinc-100">
+                <li key={item.id} className="relative aspect-square overflow-hidden rounded-lg bg-slate-100">
                   {item.previewUrl && (
                     // eslint-disable-next-line @next/next/no-img-element -- local blob preview
                     <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
@@ -306,9 +336,11 @@ export function Uploader({
                     ) : item.status === "queued" ? (
                       "รอคิว"
                     ) : item.status === "processing" ? (
-                      "กำลังย่อรูป"
+                      item.isVideo ? "กำลังเตรียมวิดีโอ" : "กำลังย่อรูป"
                     ) : item.status === "original" ? (
                       `ต้นฉบับ ${Math.round((item.progress ?? 0) * 100)}%`
+                    ) : item.isVideo ? (
+                      `วิดีโอ ${Math.round((item.progress ?? 0) * 100)}%`
                     ) : (
                       "กำลังอัปโหลด"
                     )}

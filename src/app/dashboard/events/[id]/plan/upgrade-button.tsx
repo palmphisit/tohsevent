@@ -36,7 +36,7 @@ export function UpgradeButton({
         type="button"
         onClick={upgrade}
         disabled={disabled || pending}
-        className="w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-40"
+        className="w-full rounded-xl bg-primary hover:bg-primary-hover px-4 py-3 text-sm font-medium text-white disabled:opacity-40"
       >
         {pending
           ? "กำลังไปหน้าชำระเงิน…"

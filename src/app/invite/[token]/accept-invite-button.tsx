@@ -21,7 +21,7 @@ export function AcceptInviteButton({ token }: { token: string }) {
             setState("error");
           }
         }}
-        className="mt-6 w-full rounded-xl bg-zinc-900 px-4 py-3 font-medium text-white disabled:opacity-50"
+        className="mt-6 w-full rounded-xl bg-primary hover:bg-primary-hover px-4 py-3 font-medium text-white disabled:opacity-50"
       >
         {state === "pending" ? "กำลังเข้าร่วม…" : "เข้าร่วมเป็นช่างภาพ"}
       </button>

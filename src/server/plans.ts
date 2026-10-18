@@ -17,6 +17,8 @@ export interface Plan {
   branding: boolean;
   /** Photographers may upload full-resolution originals (private bucket). */
   originals: boolean;
+  /** Video uploads (guests and official); null = photos only. */
+  video: { maxBytes: number; maxDurationSec: number } | null;
 }
 
 export const PLANS: Record<PlanTier, Plan> = {
@@ -31,6 +33,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     watermark: true,
     branding: false,
     originals: false,
+    video: null,
   },
   standard: {
     tier: "standard",
@@ -43,6 +46,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     watermark: false,
     branding: false,
     originals: false,
+    video: { maxBytes: 150 * 1024 * 1024, maxDurationSec: 60 },
   },
   premium: {
     tier: "premium",
@@ -55,6 +59,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     watermark: false,
     branding: true,
     originals: true,
+    video: { maxBytes: 400 * 1024 * 1024, maxDurationSec: 180 },
   },
 };
 

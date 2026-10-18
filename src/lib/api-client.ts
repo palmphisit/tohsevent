@@ -65,6 +65,15 @@ function uploadBody(image: PreparedImage): string {
         },
         width: image.width,
         height: image.height,
+        ...(image.video
+          ? {
+              video: {
+                contentType: image.video.contentType,
+                bytes: image.video.blob.size,
+                durationSec: Math.round(image.video.durationSec * 10) / 10,
+              },
+            }
+          : {}),
       },
     ],
   });
@@ -78,10 +87,32 @@ export async function reserveUpload(slug: string, image: PreparedImage): Promise
   return uploads[0];
 }
 
+type StorageTarget = PresignedUpload["uploads"]["display"];
+
+/** XHR PUT so large clips can report progress (fetch has no upload progress). */
+function putWithProgress(target: StorageTarget, body: Blob, onProgress: (fraction: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(target.method, target.url);
+    for (const [name, value] of Object.entries(target.headers)) xhr.setRequestHeader(name, value);
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new ApiError(xhr.status, "storage_upload_failed", `Upload of video failed (${xhr.status})`));
+    xhr.onerror = () => reject(new ApiError(0, "storage_upload_failed", "Upload of video failed (network)"));
+    xhr.send(body);
+  });
+}
+
 /** PUTs the blobs straight to object storage using the presigned URLs. */
-export async function putToStorage(reservation: PresignedUpload, image: PreparedImage): Promise<void> {
-  await Promise.all(
-    (["display", "thumb", "watermarked"] as const).map(async (variant) => {
+export async function putToStorage(
+  reservation: PresignedUpload,
+  image: PreparedImage,
+  onProgress?: (fraction: number) => void,
+): Promise<void> {
+  await Promise.all([
+    ...(["display", "thumb", "watermarked"] as const).map(async (variant) => {
       const target = reservation.uploads[variant];
       const body = image[variant];
       if (!target) return;
@@ -89,7 +120,13 @@ export async function putToStorage(reservation: PresignedUpload, image: Prepared
       const res = await fetch(target.url, { method: target.method, headers: target.headers, body });
       if (!res.ok) throw new ApiError(res.status, "storage_upload_failed", `Upload of ${variant} failed (${res.status})`);
     }),
-  );
+    (async () => {
+      const target = reservation.uploads.video;
+      if (!target) return;
+      if (!image.video) throw new ApiError(400, "missing_variant", "No video to upload");
+      await putWithProgress(target, image.video.blob, onProgress ?? (() => {}));
+    })(),
+  ]);
 }
 
 export function completeUpload(slug: string, photoId: string) {

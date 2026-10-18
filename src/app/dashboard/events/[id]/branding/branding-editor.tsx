@@ -12,7 +12,7 @@ import {
 import { BRAND_FONT_IDS, BRAND_FONT_LABELS, contrastText, type BrandFontId } from "@/lib/brand-fonts";
 import { resizeImage } from "@/lib/image";
 
-const PRESET_COLORS = ["#18181b", "#be123c", "#c2410c", "#a16207", "#15803d", "#0f766e", "#1d4ed8", "#7e22ce"];
+const PRESET_COLORS = ["#2563eb", "#18181b", "#be123c", "#c2410c", "#a16207", "#15803d", "#0f766e", "#1d4ed8", "#7e22ce"];
 const MAX_SPONSORS = 12;
 
 // Resize before upload so even large phone photos stay well under the 2 MB limit.
@@ -24,7 +24,7 @@ const ASSET_SPECS = {
 
 type Sponsor = BrandingEditorState["sponsors"][number];
 
-const inputClass = "w-full rounded-xl border border-zinc-300 px-4 py-2.5 outline-none focus:border-zinc-900";
+const inputClass = "w-full rounded-xl border border-slate-300 px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 const ERRORS: Record<string, string> = {
   plan_required: "Custom Branding ใช้ได้กับแพ็กเกจ Premium เท่านั้น",
@@ -96,22 +96,22 @@ export function BrandingEditor({
                 type="button"
                 aria-label={color}
                 onClick={() => setPrimaryColor(color)}
-                className={`h-9 w-9 rounded-full border-2 ${primaryColor === color ? "border-zinc-900" : "border-white shadow"}`}
+                className={`h-9 w-9 rounded-full border-2 ${primaryColor === color ? "border-primary" : "border-white shadow"}`}
                 style={{ background: color }}
               />
             ))}
             <input
               type="color"
-              value={validColor ? primaryColor : "#18181b"}
+              value={validColor ? primaryColor : "#2563eb"}
               onChange={(e) => setPrimaryColor(e.target.value)}
-              className="h-9 w-12 cursor-pointer rounded border border-zinc-300"
+              className="h-9 w-12 cursor-pointer rounded border border-slate-300"
               aria-label="เลือกสีเอง"
             />
             <input
               value={primaryColor}
               onChange={(e) => setPrimaryColor(e.target.value)}
               maxLength={7}
-              className="w-28 rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm"
+              className="w-28 rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
             />
           </div>
         </Section>
@@ -148,7 +148,7 @@ export function BrandingEditor({
         <Section title={`ผู้สนับสนุน (${sponsors.length}/${MAX_SPONSORS})`} hint="แสดงเป็นแถบโลโก้ท้ายหน้า">
           <ul className="space-y-3">
             {sponsors.map((sponsor, i) => (
-              <li key={sponsor.id || i} className="flex flex-col gap-3 rounded-xl border border-zinc-200 p-3 sm:flex-row sm:items-start">
+              <li key={sponsor.id || i} className="flex flex-col gap-3 rounded-xl bg-white ring-1 ring-slate-200 p-3 sm:flex-row sm:items-start">
                 <ImagePicker
                   value={sponsor.image.key ? sponsor.image : null}
                   onChange={(image) => updateSponsor(i, { image: image ?? { key: "", url: "" } })}
@@ -185,7 +185,7 @@ export function BrandingEditor({
             <button
               type="button"
               onClick={() => setSponsors((prev) => [...prev, { id: "", name: "", image: { key: "", url: "" }, linkUrl: "" }])}
-              className="mt-3 rounded-xl border border-dashed border-zinc-300 px-4 py-2 text-sm"
+              className="mt-3 rounded-xl border border-dashed border-slate-300 px-4 py-2 text-sm"
             >
               + เพิ่มผู้สนับสนุน
             </button>
@@ -197,19 +197,19 @@ export function BrandingEditor({
             type="button"
             onClick={save}
             disabled={state === "saving" || !validColor || incompleteSponsor}
-            className="rounded-xl bg-zinc-900 px-6 py-3 font-medium text-white disabled:opacity-40"
+            className="rounded-xl bg-primary hover:bg-primary-hover px-6 py-3 font-medium text-white disabled:opacity-40"
           >
             {state === "saving" ? "กำลังบันทึก…" : "บันทึก"}
           </button>
           {state === "saved" && <span className="text-sm text-emerald-700">บันทึกแล้ว แขกจะเห็นหน้าใหม่ทันที</span>}
-          {incompleteSponsor && <span className="text-sm text-zinc-500">ผู้สนับสนุนต้องมีทั้งชื่อและรูป</span>}
+          {incompleteSponsor && <span className="text-sm text-slate-500">ผู้สนับสนุนต้องมีทั้งชื่อและรูป</span>}
           {error && <span className="text-sm text-red-600">{error}</span>}
         </div>
       </div>
 
       <Preview
         title={title}
-        primaryColor={validColor ? primaryColor : "#18181b"}
+        primaryColor={validColor ? primaryColor : "#2563eb"}
         fontId={fontId}
         logo={logo}
         cover={cover}
@@ -224,7 +224,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   return (
     <section>
       <h2 className="text-sm font-medium">{title}</h2>
-      {hint && <p className="mb-2 text-xs text-zinc-500">{hint}</p>}
+      {hint && <p className="mb-2 text-xs text-slate-500">{hint}</p>}
       <div className={hint ? "" : "mt-2"}>{children}</div>
     </section>
   );
@@ -267,7 +267,7 @@ function ImagePicker({
       {value ? (
         <div className="space-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element -- uploaded asset preview */}
-          <img src={value.url} alt="" className={`rounded-lg bg-zinc-50 object-contain ${previewClass}`} />
+          <img src={value.url} alt="" className={`rounded-lg bg-slate-50 object-contain ${previewClass}`} />
           <div className="flex gap-3 text-sm">
             <button type="button" onClick={() => inputRef.current?.click()} className="underline">
               เปลี่ยน
@@ -282,7 +282,7 @@ function ImagePicker({
           type="button"
           disabled={busy}
           onClick={() => inputRef.current?.click()}
-          className="w-full rounded-xl border border-dashed border-zinc-300 px-4 py-3 text-sm text-zinc-600 disabled:opacity-50"
+          className="w-full rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-600 disabled:opacity-50"
         >
           {busy ? "กำลังอัปโหลด…" : "เลือกรูป"}
         </button>
@@ -312,8 +312,8 @@ function Preview({
   const style = { "--brand": primaryColor, "--brand-contrast": contrastText(primaryColor) } as React.CSSProperties;
   return (
     <aside className="lg:sticky lg:top-6 lg:self-start">
-      <p className="mb-2 text-xs text-zinc-500">ตัวอย่างหน้าที่แขกเห็น</p>
-      <div style={style} className={`overflow-hidden rounded-3xl border-8 border-zinc-900 bg-white p-4 ${BRAND_FONT_CLASS[fontId]}`}>
+      <p className="mb-2 text-xs text-slate-500">ตัวอย่างหน้าที่แขกเห็น</p>
+      <div style={style} className={`overflow-hidden rounded-3xl border-8 border-primary bg-white p-4 ${BRAND_FONT_CLASS[fontId]}`}>
         {cover && (
           // eslint-disable-next-line @next/next/no-img-element -- uploaded asset preview
           <img src={cover.url} alt="" className="mb-3 aspect-[3/1] w-full rounded-xl object-cover" />
@@ -322,20 +322,20 @@ function Preview({
           // eslint-disable-next-line @next/next/no-img-element -- uploaded asset preview
           <img src={logo.url} alt="" className="mb-2 h-10 w-auto object-contain" />
         )}
-        <p className="text-xs text-zinc-500">วันที่จัดงาน</p>
+        <p className="text-xs text-slate-500">วันที่จัดงาน</p>
         <p className="text-lg font-semibold">{title}</p>
-        {welcomeMessage && <p className="mt-1 whitespace-pre-line text-sm text-zinc-600">{welcomeMessage}</p>}
+        {welcomeMessage && <p className="mt-1 whitespace-pre-line text-sm text-slate-600">{welcomeMessage}</p>}
         <div className="mt-4 rounded-xl bg-brand px-4 py-3 text-center font-medium text-brand-contrast">
           ถ่ายรูป / เลือกรูปเพื่ออัปโหลด
         </div>
         <div className="mt-3 grid grid-cols-3 gap-1">
           {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="aspect-square bg-zinc-100" />
+            <div key={i} className="aspect-square bg-slate-100" />
           ))}
         </div>
         {sponsors.some((s) => s.image.url) && (
-          <div className="mt-4 border-t border-zinc-200 pt-3">
-            <p className="text-center text-xs text-zinc-500">ขอบคุณผู้สนับสนุน</p>
+          <div className="mt-4 border-t border-slate-200 pt-3">
+            <p className="text-center text-xs text-slate-500">ขอบคุณผู้สนับสนุน</p>
             <div className="mt-2 flex flex-wrap justify-center gap-3">
               {sponsors
                 .filter((s) => s.image.url)

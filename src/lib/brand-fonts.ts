@@ -12,7 +12,7 @@ export const BRAND_FONT_LABELS: Record<BrandFontId, string> = {
   "noto-serif-thai": "Noto Serif Thai (มีเชิง)",
 };
 
-export const DEFAULT_BRAND_COLOR = "#18181b";
+export const DEFAULT_BRAND_COLOR = "#2563eb";
 
 /** Black or white text, whichever reads better on `hex` (WCAG relative luminance). */
 export function contrastText(hex: string): "#ffffff" | "#18181b" {

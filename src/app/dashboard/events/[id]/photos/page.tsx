@@ -13,7 +13,7 @@ import { PhotoModeration } from "./photo-moderation";
 export default function EventPhotosPage({ params }: PageProps<"/dashboard/events/[id]/photos">) {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
-      <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-zinc-100" />}>
+      <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-slate-100" />}>
         <PhotosLoader params={params} />
       </Suspense>
     </main>
@@ -32,7 +32,7 @@ async function PhotosLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/p
 
   return (
     <>
-      <Link href={`/dashboard/events/${id}`} className="text-sm text-zinc-500 hover:text-zinc-900">
+      <Link href={`/dashboard/events/${id}`} className="text-sm text-slate-500 hover:text-slate-900">
         ← {event.title}
       </Link>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">จัดการรูปภาพ</h1>
@@ -42,6 +42,7 @@ async function PhotosLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/p
         eventId={id}
         openReports={owner ? openReports : 0}
         watermark={planOf(event).watermark}
+        video={planOf(event).video}
         canModerate={owner}
         originals={originalsAvailable(event)}
       />
@@ -57,9 +58,9 @@ function DownloadPanel({ eventId, counts }: { eventId: string; counts: { guest: 
   if (sources.length === 0) return null;
 
   return (
-    <details className="mt-4 rounded-2xl border border-zinc-200 px-4 py-3">
+    <details className="mt-4 rounded-2xl bg-white ring-1 ring-slate-200 px-4 py-3">
       <summary className="cursor-pointer text-sm font-medium">ดาวน์โหลดทั้งอัลบั้ม (ZIP)</summary>
-      <p className="mt-2 text-xs text-zinc-500">
+      <p className="mt-2 text-xs text-slate-500">
         ไฟล์ความละเอียดเต็มที่แสดงในงาน (ไม่มีลายน้ำ) แบ่งไฟล์ละ {ZIP_PART_SIZE} รูป · ไม่รวมรูปที่ซ่อนไว้
       </p>
       <div className="mt-3 space-y-3">
@@ -78,7 +79,7 @@ function DownloadPanel({ eventId, counts }: { eventId: string; counts: { guest: 
                     <a
                       key={i}
                       href={`/api/v1/host/events/${eventId}/download?source=${source}&part=${i + 1}`}
-                      className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
                     >
                       {parts === 1 ? "ดาวน์โหลด" : `รูป ${from}–${to}`}
                     </a>

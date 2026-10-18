@@ -98,10 +98,11 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
     () => ({
       prepare: ensureSession,
       watermark: event.watermark,
+      video: event.video,
       reserve: (image) => reserveUpload(event.slug, image),
       complete: async (photoId) => (await completeUpload(event.slug, photoId)).photo,
     }),
-    [ensureSession, event.slug, event.watermark],
+    [ensureSession, event.slug, event.watermark, event.video],
   );
 
   if (event.accessMode === "password" && !session) {
@@ -122,7 +123,7 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={40}
               placeholder="ชื่อของคุณ (ไม่บังคับ)"
-              className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-brand"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-brand"
             />
           )}
           <Uploader
@@ -136,7 +137,7 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
               {underReview} รูปถูกซ่อนไว้ให้เจ้าภาพตรวจสอบก่อนแสดง
             </p>
           )}
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-slate-500">
             รูปที่อัปโหลดจะแสดงให้ผู้ร่วมงานนี้เห็น ข้อมูลตำแหน่งในรูปถูกลบอัตโนมัติ ·{" "}
             <Link href="/privacy" className="underline">
               นโยบายความเป็นส่วนตัว
@@ -144,7 +145,7 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
           </p>
         </section>
       ) : (
-        <p className="mt-6 rounded-xl bg-zinc-100 px-4 py-3 text-sm text-zinc-600">ปิดรับการอัปโหลดรูปสำหรับงานนี้แล้ว</p>
+        <p className="mt-6 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-600">ปิดรับการอัปโหลดรูปสำหรับงานนี้แล้ว</p>
       )}
 
       {event.notifyAvailable && (
@@ -203,9 +204,9 @@ function NotifyMe({
   }
 
   return (
-    <section className="mt-6 rounded-xl border border-zinc-200 p-4">
+    <section className="mt-6 rounded-xl border border-slate-200 p-4">
       {email ? (
-        <p className="text-sm text-zinc-700">
+        <p className="text-sm text-slate-700">
           เราจะแจ้งไปที่ <b>{email}</b> เมื่อรูปจากช่างภาพพร้อม ·{" "}
           <button type="button" onClick={unsubscribe} disabled={state === "saving"} className="underline">
             ยกเลิก
@@ -222,7 +223,7 @@ function NotifyMe({
               onChange={(e) => setValue(e.target.value)}
               placeholder="อีเมลของคุณ"
               autoComplete="email"
-              className="min-w-0 flex-1 rounded-xl border border-zinc-300 px-3 py-2 text-base outline-none focus:border-brand"
+              className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-base outline-none focus:border-brand"
             />
             <button
               disabled={state === "saving"}
@@ -231,7 +232,7 @@ function NotifyMe({
               แจ้งฉัน
             </button>
           </div>
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-slate-500">
             ใช้ส่งแจ้งเตือนของงานนี้เท่านั้น ยกเลิกได้ทุกเมื่อ และลบเมื่ออัลบั้มหมดอายุ
           </p>
         </form>
@@ -251,13 +252,13 @@ function ConsentSheet({ onAnswer }: { onAnswer: (accepted: boolean) => void }) {
         className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl"
       >
         <h2 className="text-lg font-semibold">ก่อนแชร์รูป</h2>
-        <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-zinc-700">
+        <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-slate-700">
           <li>รูปที่คุณอัปโหลดจะแสดงให้ผู้ร่วมงานนี้และเจ้าภาพเห็น และเก็บไว้ตามระยะเวลาของงาน</li>
           <li>ระบบลบข้อมูลตำแหน่ง (GPS) ออกจากรูปก่อนอัปโหลด</li>
           <li>คุณลบรูปของตัวเองได้ทุกเมื่อ และขอให้ลบรูปที่มีคุณอยู่ได้</li>
           <li>โปรดอัปโหลดเฉพาะรูปที่เหมาะสมและคนในรูปยินดีให้แชร์</li>
         </ul>
-        <p className="mt-3 text-xs text-zinc-500">
+        <p className="mt-3 text-xs text-slate-500">
           อ่านรายละเอียดใน{" "}
           <Link href="/privacy" target="_blank" className="underline">
             นโยบายความเป็นส่วนตัว
@@ -268,7 +269,7 @@ function ConsentSheet({ onAnswer }: { onAnswer: (accepted: boolean) => void }) {
           </Link>
         </p>
         <div className="mt-5 flex gap-2">
-          <button type="button" onClick={() => onAnswer(false)} className="flex-1 rounded-xl border border-zinc-300 py-3">
+          <button type="button" onClick={() => onAnswer(false)} className="flex-1 rounded-xl border border-slate-300 py-3">
             ยกเลิก
           </button>
           <button
@@ -288,18 +289,24 @@ function EventHeader({ event, date }: { event: PublicEvent; date: string }) {
   const branding = event.branding;
   return (
     <header>
-      {branding?.coverUrl && (
+      {branding?.coverUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN
         <img src={branding.coverUrl} alt="" className="mb-5 aspect-[3/1] w-full rounded-2xl object-cover" />
+      ) : (
+        <div className="relative mb-5 h-24 overflow-hidden rounded-2xl bg-brand">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/25 via-transparent to-black/10" />
+          <div className="absolute -right-6 -bottom-10 h-32 w-32 rounded-full bg-white/15" />
+          <div className="absolute top-4 right-24 h-10 w-10 rounded-full bg-white/10" />
+        </div>
       )}
       {branding?.logoUrl && (
         // eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN
         <img src={branding.logoUrl} alt="" className="mb-3 h-16 w-auto max-w-[220px] object-contain" />
       )}
-      <p className="text-sm text-zinc-500">{date}</p>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight">{event.title}</h1>
+      <p className="text-sm text-slate-500">{date}</p>
+      <h1 className="mt-1 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{event.title}</h1>
       {branding?.welcomeMessage && (
-        <p className="mt-2 whitespace-pre-line text-zinc-600">{branding.welcomeMessage}</p>
+        <p className="mt-2 whitespace-pre-line text-slate-600">{branding.welcomeMessage}</p>
       )}
     </header>
   );
@@ -307,8 +314,8 @@ function EventHeader({ event, date }: { event: PublicEvent; date: string }) {
 
 function Sponsors({ sponsors }: { sponsors: NonNullable<PublicEvent["branding"]>["sponsors"] }) {
   return (
-    <section className="mt-12 border-t border-zinc-200 pt-6">
-      <h2 className="text-center text-sm text-zinc-500">ขอบคุณผู้สนับสนุน</h2>
+    <section className="mt-12 border-t border-slate-200 pt-6">
+      <h2 className="text-center text-sm text-slate-500">ขอบคุณผู้สนับสนุน</h2>
       <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-5">
         {sponsors.map((sponsor) => {
           const logo = (
@@ -362,7 +369,7 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-4 py-12">
       <h1 className="text-2xl font-semibold tracking-tight">{event.title}</h1>
-      <p className="mt-2 text-sm text-zinc-500">งานนี้ต้องใช้รหัสผ่านเพื่อเข้าชมและอัปโหลดรูป</p>
+      <p className="mt-2 text-sm text-slate-500">งานนี้ต้องใช้รหัสผ่านเพื่อเข้าชมและอัปโหลดรูป</p>
       <form onSubmit={submit} className="mt-6 space-y-3">
         <input
           type="password"
@@ -371,22 +378,22 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="รหัสผ่านงาน"
-          className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-brand"
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-brand"
         />
         <input
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           maxLength={40}
           placeholder="ชื่อของคุณ (ไม่บังคับ)"
-          className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-brand"
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-brand"
         />
-        <label className="flex items-start gap-2 text-sm text-zinc-600">
+        <label className="flex items-start gap-2 text-sm text-slate-600">
           <input
             type="checkbox"
             required
             checked={accepted}
             onChange={(e) => setAccepted(e.target.checked)}
-            className="mt-1 accent-zinc-900"
+            className="mt-1 accent-primary"
           />
           <span>
             ฉันยอมรับ{" "}

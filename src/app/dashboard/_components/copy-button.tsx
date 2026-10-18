@@ -12,7 +12,7 @@ export function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="shrink-0 text-xs font-medium text-zinc-900"
+      className="shrink-0 text-xs font-medium text-slate-900"
     >
       {copied ? "คัดลอกแล้ว" : "คัดลอก"}
     </button>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Camera, ImagePlus } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
+import { VideoBadge } from "@/components/video-badge";
 import { listPhotos, type PublicPhoto } from "@/lib/api-client";
 import { DeleteMyPhotoButton, ReportPhotoButton, SavePhotoButton } from "./photo-actions";
 
@@ -26,15 +28,15 @@ export function Gallery({
 
   return (
     <section className="mt-10">
-      <div role="tablist" className="flex gap-1 rounded-xl bg-zinc-100 p-1">
+      <div role="tablist" className="flex gap-1 rounded-xl bg-slate-100 p-1">
         {TABS.map((tab) => (
           <button
             key={tab.source}
             role="tab"
             aria-selected={source === tab.source}
             onClick={() => setSource(tab.source)}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${
-              source === tab.source ? "bg-white shadow-sm" : "text-zinc-500"
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              source === tab.source ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
           >
             {tab.label}
@@ -125,13 +127,20 @@ function PhotoGrid({
   }
 
   if (state === "error" && visible.length === 0) {
-    return <p className="mt-6 text-center text-sm text-zinc-500">โหลดรูปไม่สำเร็จ</p>;
+    return <p className="mt-6 text-center text-sm text-slate-500">โหลดรูปไม่สำเร็จ</p>;
   }
   if (state !== "loading" && visible.length === 0) {
     return (
-      <p className="mt-6 text-center text-sm text-zinc-500">
-        {source === "official" ? "ช่างภาพยังไม่ได้อัปโหลดรูป" : "ยังไม่มีรูป เป็นคนแรกที่แชร์รูปเลย!"}
-      </p>
+      <div className="mt-6 flex flex-col items-center rounded-2xl bg-slate-50 px-6 py-10 text-center">
+        {source === "official" ? (
+          <Camera className="h-8 w-8 text-slate-300" />
+        ) : (
+          <ImagePlus className="h-8 w-8 text-slate-300" />
+        )}
+        <p className="mt-3 text-sm text-slate-500">
+          {source === "official" ? "ช่างภาพยังไม่ได้อัปโหลดรูป กลับมาดูอีกครั้งหลังงาน" : "ยังไม่มีรูป เป็นคนแรกที่แชร์รูปเลย!"}
+        </p>
+      </div>
     );
   }
 
@@ -139,8 +148,8 @@ function PhotoGrid({
     <>
       <ul className="mt-4 grid grid-cols-3 gap-1 sm:grid-cols-4">
         {visible.map((photo, i) => (
-          <li key={photo.id} className="aspect-square overflow-hidden bg-zinc-100">
-            <button type="button" onClick={() => setOpenIndex(i)} className="block h-full w-full">
+          <li key={photo.id} className="aspect-square overflow-hidden bg-slate-100">
+            <button type="button" onClick={() => setOpenIndex(i)} className="relative block h-full w-full">
               {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
               <img
                 src={photo.thumbUrl}
@@ -148,6 +157,7 @@ function PhotoGrid({
                 loading="lazy"
                 className="h-full w-full object-cover"
               />
+              {photo.kind === "video" && <VideoBadge durationSec={photo.durationSec} />}
             </button>
           </li>
         ))}
@@ -156,7 +166,7 @@ function PhotoGrid({
         <button
           onClick={loadMore}
           disabled={state === "loading"}
-          className="mt-4 w-full rounded-xl border border-zinc-300 px-4 py-3 text-sm font-medium disabled:opacity-50"
+          className="mt-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium disabled:opacity-50"
         >
           {state === "loading" ? "กำลังโหลด…" : "ดูรูปเพิ่มเติม"}
         </button>

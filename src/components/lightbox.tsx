@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { PublicPhoto } from "@/lib/api-client";
 
-/** Full-screen photo viewer with keyboard and swipe navigation. */
+/** Full-screen photo/video viewer with keyboard and swipe navigation. */
 export function Lightbox<P extends PublicPhoto>({
   photos,
   index,
@@ -64,15 +64,29 @@ export function Lightbox<P extends PublicPhoto>({
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-2">
-        {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
-        <img
-          key={photo.id}
-          src={photo.displayUrl}
-          alt=""
-          width={photo.width}
-          height={photo.height}
-          className="max-h-full max-w-full object-contain"
-        />
+        {photo.videoUrl ? (
+          <video
+            key={photo.id}
+            src={photo.videoUrl}
+            poster={photo.displayUrl}
+            controls
+            playsInline
+            preload="metadata"
+            width={photo.width}
+            height={photo.height}
+            className="max-h-full max-w-full bg-black object-contain"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN
+          <img
+            key={photo.id}
+            src={photo.displayUrl}
+            alt=""
+            width={photo.width}
+            height={photo.height}
+            className="max-h-full max-w-full object-contain"
+          />
+        )}
         {hasPrev && (
           <button
             type="button"

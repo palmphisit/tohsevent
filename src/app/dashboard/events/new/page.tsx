@@ -5,7 +5,7 @@ import { EventForm } from "../../_components/event-form";
 export default function NewEventPage() {
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-8">
-      <Link href="/dashboard" className="text-sm text-zinc-500 hover:text-zinc-900">
+      <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-900">
         ← งานของฉัน
       </Link>
       <h1 className="mt-2 mb-6 text-2xl font-semibold tracking-tight">สร้างงานใหม่</h1>

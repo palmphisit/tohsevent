@@ -1,6 +1,7 @@
 // Client-side image preparation: decode (applying EXIF orientation), downscale and
 // re-encode as JPEG. Re-encoding through <canvas> also strips EXIF metadata such as
 // GPS location, so guests never leak where a photo was taken.
+import type { VideoContentType } from "@/server/models";
 
 export const IMAGE_VARIANTS = {
   display: { maxEdge: 2560, quality: 0.85 },
@@ -14,6 +15,8 @@ export interface PreparedImage {
   watermarked?: Blob;
   width: number;
   height: number;
+  /** Video items: the clip itself, uploaded as-is; display/thumb are its poster frames (see lib/video.ts). */
+  video?: { blob: Blob; contentType: VideoContentType; durationSec: number };
 }
 
 export const WATERMARK_TEXT = "Tohs Event";
@@ -65,12 +68,12 @@ async function decode(file: Blob): Promise<Decoded> {
   }
 }
 
-function fit(width: number, height: number, maxEdge: number) {
+export function fit(width: number, height: number, maxEdge: number) {
   const scale = Math.min(1, maxEdge / Math.max(width, height));
   return { width: Math.round(width * scale), height: Math.round(height * scale) };
 }
 
-function draw(source: CanvasImageSource, width: number, height: number): HTMLCanvasElement {
+export function draw(source: CanvasImageSource, width: number, height: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -81,7 +84,7 @@ function draw(source: CanvasImageSource, width: number, height: number): HTMLCan
   return canvas;
 }
 
-function toJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+export function toJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Image encoding failed"))), "image/jpeg", quality);
   });

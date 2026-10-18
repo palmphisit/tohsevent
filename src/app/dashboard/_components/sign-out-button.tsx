@@ -13,7 +13,7 @@ export function SignOutButton() {
         router.replace("/login");
         router.refresh();
       }}
-      className="text-sm text-zinc-500 hover:text-zinc-900"
+      className="text-sm text-slate-500 hover:text-slate-900"
     >
       ออกจากระบบ
     </button>

@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lightbox } from "@/components/lightbox";
+import { VideoBadge } from "@/components/video-badge";
 import { Uploader, type UploadTarget } from "@/components/uploader";
 import { uploadOriginal } from "@/lib/original-upload";
+import type { VideoLimits } from "@/lib/video";
 import {
   completeOfficialUpload,
   deleteHostPhoto,
@@ -38,12 +40,14 @@ export function PhotoModeration({
   eventId,
   openReports,
   watermark,
+  video,
   canModerate,
   originals,
 }: {
   eventId: string;
   openReports: number;
   watermark: boolean;
+  video: VideoLimits | null;
   /** Owners moderate everything; photographers only upload and manage their own official photos. */
   canModerate: boolean;
   /** The event's plan allows full-resolution originals. */
@@ -55,7 +59,7 @@ export function PhotoModeration({
 
   return (
     <div className="mt-6">
-      <div role="tablist" className="flex gap-1 rounded-xl bg-zinc-100 p-1">
+      <div role="tablist" className="flex gap-1 rounded-xl bg-slate-100 p-1">
         {tabs.map((tab) => (
           <button
             key={tab.view}
@@ -63,7 +67,7 @@ export function PhotoModeration({
             type="button"
             aria-selected={view === tab.view}
             onClick={() => setView(tab.view)}
-            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${view === tab.view ? "bg-white shadow-sm" : "text-zinc-500"}`}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${view === tab.view ? "bg-white shadow-sm" : "text-slate-500"}`}
           >
             {tab.label}
             {tab.view === "reported" && reportCount > 0 && (
@@ -77,6 +81,7 @@ export function PhotoModeration({
         eventId={eventId}
         view={view}
         watermark={watermark}
+        video={video}
         canModerate={canModerate}
         originals={originals}
         onReportsResolved={(n) => setReportCount((c) => Math.max(0, c - n))}
@@ -89,6 +94,7 @@ function ModerationGrid({
   eventId,
   view,
   watermark,
+  video,
   canModerate,
   originals,
   onReportsResolved,
@@ -96,6 +102,7 @@ function ModerationGrid({
   eventId: string;
   view: HostPhotoView;
   watermark: boolean;
+  video: VideoLimits | null;
   canModerate: boolean;
   originals: boolean;
   onReportsResolved: (photos: number) => void;
@@ -180,13 +187,14 @@ function ModerationGrid({
   const uploadTarget = useMemo<UploadTarget>(
     () => ({
       watermark,
+      video,
       reserve: (image) => reserveOfficialUpload(eventId, image),
       complete: (photoId) => completeOfficialUpload(eventId, photoId),
       ...(withOriginals
         ? { uploadOriginal: (photoId: string, file: Blob, onProgress: (f: number) => void) => uploadOriginal(eventId, photoId, file, onProgress) }
         : {}),
     }),
-    [eventId, watermark, withOriginals],
+    [eventId, watermark, video, withOriginals],
   );
 
   return (
@@ -197,37 +205,37 @@ function ModerationGrid({
             target={uploadTarget}
             onUploaded={onUploaded}
             persistKey={`official:${eventId}`}
-            label="อัปโหลดรูป Official"
+            label={video ? "อัปโหลดรูป / วิดีโอ Official" : "อัปโหลดรูป Official"}
           />
           {originals && (
-            <label className="mt-2 flex items-center gap-2 text-sm text-zinc-700">
+            <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
                 checked={withOriginals}
                 onChange={(e) => setWithOriginals(e.target.checked)}
-                className="accent-zinc-900"
+                className="accent-primary"
               />
-              อัปโหลดไฟล์ต้นฉบับด้วย (เก็บแบบส่วนตัว ไม่แสดงให้แขกเห็น · สูงสุด 200 MB ต่อไฟล์)
+              อัปโหลดไฟล์ต้นฉบับของรูปด้วย (เก็บแบบส่วนตัว ไม่แสดงให้แขกเห็น · สูงสุด 200 MB ต่อไฟล์)
             </label>
           )}
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-slate-500">
             รูปจะถูกย่อเป็นความละเอียด 2560px ก่อนอัปโหลด การอัปโหลดไฟล์ต้นฉบับความละเอียดสูงจะมาพร้อมแอปสำหรับช่างภาพ
             {watermark && " · แพ็กเกจ Free: แขกจะเห็นรูปพร้อมลายน้ำ Tohs Event จนกว่าจะอัปเกรด"}
           </p>
         </div>
       )}
 
-      {state === "error" && photos.length === 0 && <p className="py-8 text-center text-sm text-zinc-500">โหลดรูปไม่สำเร็จ</p>}
+      {state === "error" && photos.length === 0 && <p className="py-8 text-center text-sm text-slate-500">โหลดรูปไม่สำเร็จ</p>}
       {state !== "loading" && photos.length === 0 && state !== "error" && (
-        <p className="py-8 text-center text-sm text-zinc-500">
+        <p className="py-8 text-center text-sm text-slate-500">
           {view === "reported" ? "ไม่มีรูปที่ถูกรายงาน" : "ยังไม่มีรูป"}
         </p>
       )}
 
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
         {photos.map((photo, i) => (
-          <li key={photo.id} className="overflow-hidden rounded-xl border border-zinc-200">
-            <button type="button" onClick={() => setOpenIndex(i)} className="relative block aspect-square w-full bg-zinc-100">
+          <li key={photo.id} className="overflow-hidden rounded-xl border border-slate-200">
+            <button type="button" onClick={() => setOpenIndex(i)} className="relative block aspect-square w-full bg-slate-100">
               {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
               <img
                 src={photo.thumbUrl}
@@ -235,12 +243,13 @@ function ModerationGrid({
                 loading="lazy"
                 className={`h-full w-full object-cover ${photo.status === "hidden" ? "opacity-40 grayscale" : ""}`}
               />
+              {photo.kind === "video" && <VideoBadge durationSec={photo.durationSec} />}
               <div className="absolute top-2 left-2 flex gap-1">
                 {photo.autoFlagged ? (
                   <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs text-white">AI ซ่อนไว้รอตรวจ</span>
                 ) : (
                   photo.status === "hidden" && (
-                    <span className="rounded-full bg-zinc-900 px-2 py-0.5 text-xs text-white">ซ่อนอยู่</span>
+                    <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">ซ่อนอยู่</span>
                   )
                 )}
                 {photo.openReports > 0 && (
@@ -276,7 +285,7 @@ function ModerationGrid({
                 ลบ
               </ActionButton>
             </div>
-            {photo.uploaderName && <p className="truncate px-2 pb-2 text-xs text-zinc-500">{photo.uploaderName}</p>}
+            {photo.uploaderName && <p className="truncate px-2 pb-2 text-xs text-slate-500">{photo.uploaderName}</p>}
             {photo.original && (
               <p className="px-2 pb-2 text-xs">
                 {photo.original.status === "ready" ? (
@@ -292,11 +301,11 @@ function ModerationGrid({
               </p>
             )}
             {photo.reports.length > 0 && (
-              <ul className="space-y-1 border-t border-zinc-100 px-2 py-2 text-xs">
+              <ul className="space-y-1 border-t border-slate-100 px-2 py-2 text-xs">
                 {photo.reports.map((r, i) => (
-                  <li key={i} className={r.reason === "remove_me" ? "text-red-700" : "text-zinc-600"}>
+                  <li key={i} className={r.reason === "remove_me" ? "text-red-700" : "text-slate-600"}>
                     {REPORT_LABELS[r.reason]} · {timeAgo(r.createdAt)}
-                    {r.note && <span className="block text-zinc-500">“{r.note}”</span>}
+                    {r.note && <span className="block text-slate-500">“{r.note}”</span>}
                   </li>
                 ))}
               </ul>
@@ -309,7 +318,7 @@ function ModerationGrid({
         <button
           onClick={loadMore}
           disabled={state === "loading"}
-          className="mt-4 w-full rounded-xl border border-zinc-300 px-4 py-3 text-sm font-medium disabled:opacity-50"
+          className="mt-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium disabled:opacity-50"
         >
           {state === "loading" ? "กำลังโหลด…" : "ดูรูปเพิ่มเติม"}
         </button>
@@ -332,7 +341,7 @@ function ActionButton({
       type="button"
       {...props}
       className={`flex-1 rounded-lg px-2 py-1.5 font-medium disabled:opacity-50 ${
-        danger ? "text-red-600 hover:bg-red-50" : "hover:bg-zinc-100"
+        danger ? "text-red-600 hover:bg-red-50" : "hover:bg-slate-100"
       }`}
     >
       {children}

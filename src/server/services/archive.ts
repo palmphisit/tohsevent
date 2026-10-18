@@ -4,7 +4,7 @@ import { HttpError } from "../http";
 import type { EventDoc, PhotoDoc, PhotoSource } from "../models";
 import { getObjectStream } from "../storage";
 
-// Album download for hosts: the visible photos (clean display files, never watermarked)
+// Album download for hosts: the visible photos (clean display files, never watermarked; videos as the clip)
 // streamed into a ZIP part by part, so nothing is buffered in memory and each request
 // stays well inside Cloud Run's timeout.
 
@@ -23,7 +23,7 @@ export async function downloadableCounts(event: EventDoc): Promise<Record<PhotoS
 
 function fileName(photo: PhotoDoc, index: number): string {
   const who = photo.uploader.displayName?.replace(/[^\p{L}\p{N} _-]+/gu, "").trim().slice(0, 40);
-  const ext = photo.contentType === "image/webp" ? "webp" : "jpg";
+  const ext = photo.keys.video ? photo.keys.video.split(".").pop() : photo.contentType === "image/webp" ? "webp" : "jpg";
   return `${String(index).padStart(4, "0")}${who ? `-${who}` : ""}.${ext}`;
 }
 
@@ -37,12 +37,12 @@ export async function albumZip(event: EventDoc, source: PhotoSource, part: numbe
     photo,
     name: `${source}/${fileName(photo, offset + i + 1)}`,
     lastModified: photo.completedAt ?? photo.createdAt,
-    size: photo.bytes.display,
+    size: photo.bytes.video ?? photo.bytes.display,
   }));
 
   async function* files() {
     for (const { photo, name, lastModified, size } of entries) {
-      yield { name, lastModified, size, input: await getObjectStream(photo.keys.display) };
+      yield { name, lastModified, size, input: await getObjectStream(photo.keys.video ?? photo.keys.display) };
     }
   }
 

@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "แชร์รูปในงานอีเวนต์ด้วย QR Code",
     display: "standalone",
     background_color: "#ffffff",
-    theme_color: "#18181b",
+    theme_color: "#2563eb",
     lang: "th",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },

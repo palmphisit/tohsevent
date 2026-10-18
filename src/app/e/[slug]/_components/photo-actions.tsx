@@ -11,6 +11,18 @@ const buttonClass = "rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium ho
  * shown, because iOS only allows `navigator.share` right after a tap.
  */
 export function SavePhotoButton({ photo }: { photo: PublicPhoto }) {
+  if (photo.videoUrl) {
+    // Clips can be hundreds of MB: no prefetch; the browser's own player offers save/share.
+    return (
+      <a href={photo.videoUrl} target="_blank" rel="noopener" download className={buttonClass}>
+        เซฟวิดีโอ
+      </a>
+    );
+  }
+  return <SaveImageButton photo={photo} />;
+}
+
+function SaveImageButton({ photo }: { photo: PublicPhoto }) {
   const [loaded, setLoaded] = useState<{ id: string; blob: Blob } | null>(null);
   const blob = loaded?.id === photo.id ? loaded.blob : null;
 
@@ -67,7 +79,8 @@ export function DeleteMyPhotoButton({
 }) {
   const [pending, setPending] = useState(false);
   async function remove() {
-    if (!window.confirm("ลบรูปนี้ถาวร? รูปจะหายจากหน้างานทันที")) return;
+    const what = photo.kind === "video" ? "วิดีโอ" : "รูป";
+    if (!window.confirm(`ลบ${what}นี้ถาวร? ${what}จะหายจากหน้างานทันที`)) return;
     setPending(true);
     try {
       await deleteMyPhoto(slug, photo.id);
@@ -80,7 +93,7 @@ export function DeleteMyPhotoButton({
   }
   return (
     <button type="button" onClick={remove} disabled={pending} className={buttonClass}>
-      {pending ? "กำลังลบ…" : "ลบรูปของฉัน"}
+      {pending ? "กำลังลบ…" : photo.kind === "video" ? "ลบวิดีโอของฉัน" : "ลบรูปของฉัน"}
     </button>
   );
 }
@@ -134,17 +147,17 @@ export function ReportPhotoButton({
           <form
             onSubmit={submit}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md space-y-3 rounded-t-2xl bg-white p-5 text-zinc-900 sm:rounded-2xl"
+            className="w-full max-w-md space-y-3 rounded-t-2xl bg-white p-5 text-slate-900 sm:rounded-2xl"
           >
             <h2 className="text-lg font-semibold">แจ้งเจ้าภาพเกี่ยวกับรูปนี้</h2>
             {REASONS.map((r) => (
-              <label key={r.value} className="flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3">
+              <label key={r.value} className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
                 <input
                   type="radio"
                   name="reason"
                   checked={reason === r.value}
                   onChange={() => setReason(r.value)}
-                  className="accent-zinc-900"
+                  className="accent-primary"
                 />
                 <span>{r.label}</span>
               </label>
@@ -155,11 +168,11 @@ export function ReportPhotoButton({
               maxLength={500}
               rows={2}
               placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"
-              className="w-full rounded-xl border border-zinc-300 px-4 py-3 outline-none focus:border-zinc-900"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
             />
             {state === "error" && <p className="text-sm text-red-600">ส่งไม่สำเร็จ ลองอีกครั้ง</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl border border-zinc-300 py-3">
+              <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl border border-slate-300 py-3">
                 ยกเลิก
               </button>
               <button

@@ -79,7 +79,7 @@ export async function notifyGuestsPhotosReady(event: EventDoc): Promise<number> 
         subject: `รูปจากงาน ${event.title} พร้อมแล้ว`,
         html: emailLayout(
           `<p style="margin-top:0">รูปจากช่างภาพของงาน <b>${title}</b> พร้อมให้ดูและเซฟแล้ว</p>
-<p><a href="${link}" style="display:inline-block;background:#18181b;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none">ดูรูปในงาน</a></p>`,
+<p><a href="${link}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none">ดูรูปในงาน</a></p>`,
           `คุณได้รับอีเมลนี้เพราะขอรับแจ้งเตือนจากหน้างาน · <a href="${unsubscribe}" style="color:#71717a">ยกเลิกการแจ้งเตือน</a>`,
         ),
         text: `รูปจากช่างภาพของงาน ${event.title} พร้อมแล้ว: ${link}\n\nยกเลิกการแจ้งเตือน: ${unsubscribe}`,
@@ -129,7 +129,7 @@ export async function sendExpiryReminders(now = new Date()): Promise<number> {
         `<p style="margin-top:0">อัลบั้มของงาน <b>${escapeHtml(event.title)}</b> จะปิดให้แขกเข้าชมในวันที่ ${date}
 และไฟล์รูปจะถูกลบหลังจากนั้น 7 วัน</p>
 <p>ดาวน์โหลดรูปเก็บไว้ หรืออัปเกรดแพ็กเกจเพื่อเปิดอัลบั้มนานขึ้น</p>
-<p><a href="${planUrl}" style="display:inline-block;background:#18181b;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none">จัดการงาน</a></p>`,
+<p><a href="${planUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none">จัดการงาน</a></p>`,
       ),
       text: `อัลบั้มของงาน ${event.title} จะปิดวันที่ ${date} จัดการงาน: ${planUrl}`,
     });

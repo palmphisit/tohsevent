@@ -2,21 +2,21 @@ import Link from "next/link";
 import { LEGAL } from "@/lib/legal";
 import { PLANS, PURGE_GRACE_DAYS } from "@/server/plans";
 
-export const metadata = { title: "นโยบายความเป็นส่วนตัว · Tohs Event" };
+export const metadata = { title: "นโยบายความเป็นส่วนตัว", alternates: { canonical: "/privacy" } };
 
 // Draft privacy notice under Thailand's PDPA. Must be reviewed by a lawyer before launch.
 export default function PrivacyPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-10">
-      <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-900">
+      <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">
         ← {LEGAL.serviceName}
       </Link>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight">นโยบายความเป็นส่วนตัว</h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-slate-500">
         มีผลตั้งแต่ {LEGAL.effectiveDate} (ฉบับ {LEGAL.version})
       </p>
 
-      <div className="mt-8 space-y-8 leading-7 text-zinc-700 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-zinc-900 [&_li]:ml-5 [&_li]:list-disc">
+      <div className="mt-8 space-y-8 leading-7 text-slate-700 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-slate-900 [&_li]:ml-5 [&_li]:list-disc">
         <section>
           <h2>1. ผู้ควบคุมข้อมูลส่วนบุคคล</h2>
           <p>

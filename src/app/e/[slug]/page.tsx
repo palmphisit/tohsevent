@@ -7,6 +7,9 @@ import { findOpenEventBySlug, toPublicEvent } from "@/server/services/events";
 import { findGuestSession, toPublicSession } from "@/server/services/guests";
 import { GuestApp } from "./_components/guest-app";
 
+// Guest albums are private: keep them out of search engines.
+export const metadata = { title: { absolute: "อัลบั้มรูปในงาน · Tohs Event" }, robots: { index: false, follow: false } };
+
 export default function EventPage({ params }: PageProps<"/e/[slug]">) {
   return (
     <Suspense fallback={<EventSkeleton />}>
@@ -36,9 +39,9 @@ async function EventLoader({ params }: Pick<PageProps<"/e/[slug]">, "params">) {
 function EventSkeleton() {
   return (
     <main className="mx-auto w-full max-w-3xl animate-pulse px-4 py-8">
-      <div className="h-8 w-2/3 rounded bg-zinc-200" />
-      <div className="mt-3 h-4 w-1/3 rounded bg-zinc-200" />
-      <div className="mt-8 h-14 rounded-xl bg-zinc-200" />
+      <div className="h-8 w-2/3 rounded bg-slate-200" />
+      <div className="mt-3 h-4 w-1/3 rounded bg-slate-200" />
+      <div className="mt-8 h-14 rounded-xl bg-slate-200" />
     </main>
   );
 }

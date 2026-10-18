@@ -9,7 +9,7 @@ import { UpgradeButton } from "./upgrade-button";
 export default function EventPlanPage({ params, searchParams }: PageProps<"/dashboard/events/[id]/plan">) {
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
-      <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-zinc-100" />}>
+      <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-slate-100" />}>
         <PlanDetails params={params} searchParams={searchParams} />
       </Suspense>
     </main>
@@ -37,7 +37,7 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
 
   return (
     <>
-      <Link href={`/dashboard/events/${id}`} className="text-sm text-zinc-500 hover:text-zinc-900">
+      <Link href={`/dashboard/events/${id}`} className="text-sm text-slate-500 hover:text-slate-900">
         ← {event.title}
       </Link>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">แพ็กเกจของงาน</h1>
@@ -50,7 +50,7 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
         </p>
       )}
       {checkout === "cancelled" && (
-        <p className="mt-4 rounded-xl bg-zinc-100 px-4 py-3 text-sm text-zinc-700">ยกเลิกการชำระเงินแล้ว ยังไม่มีการเรียกเก็บเงิน</p>
+        <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">ยกเลิกการชำระเงินแล้ว ยังไม่มีการเรียกเก็บเงิน</p>
       )}
       {event.status === "expired" && !event.purgedAt && (
         <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -59,11 +59,11 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
         </p>
       )}
 
-      <section className="mt-6 rounded-2xl border border-zinc-200 p-5">
+      <section className="mt-6 rounded-2xl bg-white ring-1 ring-slate-200 p-5">
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="text-lg font-semibold">แพ็กเกจปัจจุบัน: {plan.name}</h2>
           {event.expiresAt && (
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-slate-500">
               {event.status === "expired" ? "หมดอายุเมื่อ" : "เปิดให้แขกถึง"} {longDate(event.expiresAt)}
             </p>
           )}
@@ -94,8 +94,8 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
           );
         })}
       </div>
-      {!canPay && <p className="mt-4 text-sm text-zinc-500">ระบบชำระเงินยังไม่เปิดใช้งานใน environment นี้</p>}
-      <p className="mt-4 text-xs text-zinc-500">
+      {!canPay && <p className="mt-4 text-sm text-slate-500">ระบบชำระเงินยังไม่เปิดใช้งานใน environment นี้</p>}
+      <p className="mt-4 text-xs text-slate-500">
         ชำระครั้งเดียวต่องาน ผ่านบัตรเครดิต/เดบิต หรือ PromptPay อายุอัลบั้มนับจากวันจัดงาน (หรือจากวันอัปเกรด ถ้างานผ่านไปแล้ว)
       </p>
     </>
@@ -108,12 +108,12 @@ function Usage({ label, used, max }: { label: string; used: number; max: number 
     <div>
       <div className="flex justify-between text-sm">
         <span>{label}</span>
-        <span className="text-zinc-500">
+        <span className="text-slate-500">
           {thb(used)} / {thb(max)}
         </span>
       </div>
-      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-zinc-100">
-        <div className={`h-full rounded-full ${pct >= 90 ? "bg-red-500" : "bg-zinc-900"}`} style={{ width: `${pct}%` }} />
+      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${pct >= 90 ? "bg-red-500" : "bg-primary"}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -121,21 +121,26 @@ function Usage({ label, used, max }: { label: string; used: number; max: number 
 
 function PlanCard({ plan, current, children }: { plan: Plan; current: boolean; children?: React.ReactNode }) {
   return (
-    <div className={`flex flex-col rounded-2xl border p-5 ${current ? "border-zinc-900" : "border-zinc-200"}`}>
+    <div className={`flex flex-col rounded-2xl border p-5 ${current ? "border-primary" : "border-slate-200"}`}>
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">{plan.name}</h3>
-        {current && <span className="rounded-full bg-zinc-900 px-2.5 py-0.5 text-xs text-white">ใช้อยู่</span>}
+        {current && <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs text-white">ใช้อยู่</span>}
       </div>
       <p className="mt-2 text-2xl font-semibold">
         {plan.priceThb === 0 ? "ฟรี" : `${thb(plan.priceThb)} ฿`}
-        {plan.priceThb > 0 && <span className="text-sm font-normal text-zinc-500"> / งาน</span>}
+        {plan.priceThb > 0 && <span className="text-sm font-normal text-slate-500"> / งาน</span>}
       </p>
-      <ul className="mt-4 flex-1 space-y-1.5 text-sm text-zinc-700">
+      <ul className="mt-4 flex-1 space-y-1.5 text-sm text-slate-700">
         <li>แขกสูงสุด {thb(plan.maxGuests)} คน</li>
-        <li>รูปรวมทั้งงาน {thb(plan.maxPhotos)} รูป</li>
+        <li>รูปรวมทั้งงาน {thb(plan.maxPhotos)} รูป{plan.video ? " (รวมวิดีโอ)" : ""}</li>
         <li>แขกอัปโหลดได้คนละ {thb(plan.maxPhotosPerGuest)} รูป</li>
         <li>เก็บอัลบั้ม {plan.retentionDays} วันหลังวันงาน</li>
         <li>{plan.watermark ? "รูปที่แขกเห็นมีลายน้ำ Tohs Event" : "ไม่มีลายน้ำ (รูปเดิมก็เปลี่ยนเป็นไม่มีลายน้ำทันที)"}</li>
+        <li>
+          {plan.video
+            ? `อัปวิดีโอได้ ยาวไม่เกิน ${plan.video.maxDurationSec} วินาที (${Math.round(plan.video.maxBytes / 1024 / 1024)} MB)`
+            : "รูปภาพเท่านั้น (ไม่รองรับวิดีโอ)"}
+        </li>
         {plan.branding && <li>Custom Branding: สี ฟอนต์ โลโก้ รูปปก + แบนเนอร์ผู้สนับสนุน</li>}
         {plan.originals && <li>ช่างภาพอัปไฟล์ต้นฉบับความละเอียดเต็ม (สูงสุด 200 MB/รูป)</li>}
       </ul>

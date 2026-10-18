@@ -9,6 +9,7 @@ import {
   type PhotoSource,
   type PhotoVariant,
   type UploadContentType,
+  type VideoContentType,
 } from "../models";
 import { checkImage } from "../safe-search";
 import { headObject, presignPut, publicUrl } from "../storage";
@@ -22,7 +23,11 @@ export interface UploadRequestFile {
   width: number;
   height: number;
   takenAt?: string;
+  /** Video item: the clip itself; display/thumb are its poster frames. */
+  video?: { contentType: VideoContentType; bytes: number; durationSec: number };
 }
+
+const VIDEO_EXTENSIONS: Record<VideoContentType, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" };
 
 interface UploadTarget {
   url: string;
@@ -32,7 +37,7 @@ interface UploadTarget {
 
 export interface PresignedUpload {
   photoId: string;
-  uploads: { display: UploadTarget; thumb: UploadTarget; watermarked?: UploadTarget };
+  uploads: { display: UploadTarget; thumb: UploadTarget; watermarked?: UploadTarget; video?: UploadTarget };
 }
 
 /**
@@ -44,9 +49,17 @@ function photoKey(eventId: ObjectId, folder: string, name: string, contentType: 
   return `events/${eventId.toHexString()}/photos/${folder}/${name}.${EXTENSIONS[contentType]}`;
 }
 
-/** Variants a photo was uploaded with (always display + thumb, plus watermarked on Free events). */
+/** Variants a photo was uploaded with (always display + thumb, plus watermarked on Free events and the clip for videos). */
 function variantsOf(photo: Pick<PhotoDoc, "keys">): PhotoVariant[] {
-  return photo.keys.watermarked ? ["display", "thumb", "watermarked"] : ["display", "thumb"];
+  const variants: PhotoVariant[] = ["display", "thumb"];
+  if (photo.keys.watermarked) variants.push("watermarked");
+  if (photo.keys.video) variants.push("video");
+  return variants;
+}
+
+/** The clip has its own content type; every image variant shares the photo's. */
+function contentTypeOf(photo: Pick<PhotoDoc, "contentType" | "video">, variant: PhotoVariant): string {
+  return variant === "video" && photo.video ? photo.video.contentType : photo.contentType;
 }
 
 type Uploader = PhotoDoc["uploader"];
@@ -75,6 +88,23 @@ export async function releasePhotoQuota(eventId: ObjectId, count: number): Promi
   await events.updateOne({ _id: eventId, "usage.photos": { $gte: count } }, { $inc: { "usage.photos": -count } });
 }
 
+/** Plan rules on the requested files; runs before any quota is reserved. */
+function assertFilesAllowed(event: EventDoc, files: UploadRequestFile[]): void {
+  const videoLimits = planOf(event).video;
+  for (const file of files) {
+    if (!file.video) continue;
+    if (!videoLimits) throw new HttpError(403, "video_not_allowed", "This event's plan does not include videos");
+    if (file.video.bytes > videoLimits.maxBytes) throw new HttpError(413, "video_too_large", "The video file is too large");
+    if (file.video.durationSec > videoLimits.maxDurationSec + 1) {
+      throw new HttpError(400, "video_too_long", "The video is longer than this plan allows");
+    }
+  }
+
+  if (planOf(event).watermark && files.some((file) => !file.bytes.watermarked)) {
+    throw new HttpError(400, "watermark_required", "Photos for this event must include the watermarked variant");
+  }
+}
+
 /** Inserts `pending` photo docs and returns presigned PUT URLs for every variant. */
 async function createPendingPhotos(
   event: EventDoc,
@@ -83,17 +113,14 @@ async function createPendingPhotos(
   files: UploadRequestFile[],
 ): Promise<PresignedUpload[]> {
   const watermark = planOf(event).watermark;
-  if (watermark && files.some((file) => !file.bytes.watermarked)) {
-    throw new HttpError(400, "watermark_required", "Photos for this event must include the watermarked variant");
-  }
-
   const { photos } = await collections();
   const now = new Date();
   const docs: PhotoDoc[] = files.map((file) => {
     const _id = new ObjectId();
     const folder = `${_id.toHexString()}-${randomBytes(8).toString("hex")}`;
     const key = (name: string) => photoKey(event._id, folder, name, file.contentType);
-    return {
+    const clip = file.video;
+    const doc: PhotoDoc = {
       _id,
       eventId: event._id,
       source,
@@ -114,22 +141,33 @@ async function createPendingPhotos(
       createdAt: now,
       completedAt: null,
     };
+    if (clip) {
+      doc.kind = "video";
+      doc.video = { contentType: clip.contentType, durationSec: clip.durationSec };
+      doc.keys.video = `events/${event._id.toHexString()}/photos/${folder}/video.${VIDEO_EXTENSIONS[clip.contentType]}`;
+      doc.bytes.video = clip.bytes;
+    }
+    return doc;
   });
   await photos.insertMany(docs);
 
   return Promise.all(
     docs.map(async (doc) => {
       const presign = async (variant: PhotoVariant): Promise<UploadTarget> => ({
-        url: await presignPut(doc.keys[variant]!, doc.contentType, doc.bytes[variant]!),
+        url: await presignPut(doc.keys[variant]!, contentTypeOf(doc, variant), doc.bytes[variant]!),
         method: "PUT",
-        headers: { "Content-Type": doc.contentType },
+        headers: { "Content-Type": contentTypeOf(doc, variant) },
       });
-      const [display, thumb, watermarked] = await Promise.all([
+      const [display, thumb, watermarked, video] = await Promise.all([
         presign("display"),
         presign("thumb"),
         doc.keys.watermarked ? presign("watermarked") : undefined,
+        doc.keys.video ? presign("video") : undefined,
       ]);
-      return { photoId: doc._id.toHexString(), uploads: { display, thumb, ...(watermarked ? { watermarked } : {}) } };
+      return {
+        photoId: doc._id.toHexString(),
+        uploads: { display, thumb, ...(watermarked ? { watermarked } : {}), ...(video ? { video } : {}) },
+      };
     }),
   );
 }
@@ -144,6 +182,7 @@ export async function createGuestUploads(
   files: UploadRequestFile[],
 ): Promise<PresignedUpload[]> {
   if (!event.settings.guestUpload) throw new HttpError(403, "uploads_disabled", "Uploads are closed for this event");
+  assertFilesAllowed(event, files);
 
   const { guestSessions } = await collections();
   await reservePhotoQuota(event, files.length);
@@ -172,6 +211,7 @@ export async function createOfficialUploads(
   host: { id: ObjectId; name: string },
   files: UploadRequestFile[],
 ): Promise<PresignedUpload[]> {
+  assertFilesAllowed(event, files);
   await reservePhotoQuota(event, files.length);
   return createPendingPhotos(event, "official", { type: "user", id: host.id, displayName: host.name }, files);
 }
@@ -192,7 +232,7 @@ export async function completeUpload(event: EventDoc, uploaderId: ObjectId, phot
   variants.forEach((variant, i) => {
     const head = heads[i];
     if (!head) throw new HttpError(409, "upload_incomplete", `The ${variant} file has not been uploaded yet`);
-    if (head.ContentLength !== photo.bytes[variant] || head.ContentType !== photo.contentType) {
+    if (head.ContentLength !== photo.bytes[variant] || head.ContentType !== contentTypeOf(photo, variant)) {
       throw new HttpError(409, "upload_mismatch", `The ${variant} file does not match the declared size or type`);
     }
   });
@@ -227,6 +267,10 @@ export interface PublicPhoto {
   mine?: boolean;
   /** Set on upload completion when auto moderation held the photo back for host review. */
   pendingReview?: boolean;
+  kind: "photo" | "video";
+  /** Video items only: the clip (thumb/display URLs are its poster frames). */
+  videoUrl?: string;
+  durationSec?: number;
 }
 
 /**
@@ -249,6 +293,10 @@ export function toPublicPhoto(
     width: photo.width,
     height: photo.height,
     createdAt: photo.createdAt.toISOString(),
+    kind: photo.kind ?? "photo",
+    ...(photo.keys.video && photo.video
+      ? { videoUrl: publicUrl(photo.keys.video), durationSec: Math.round(photo.video.durationSec) }
+      : {}),
     ...(options.viewerId?.equals(photo.uploader.id) ? { mine: true } : {}),
     ...(photo.status === "hidden" && photo.autoModeration?.flagged ? { pendingReview: true } : {}),
   };

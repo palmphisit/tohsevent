@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UPLOAD_CONTENT_TYPES, UPLOAD_LIMITS } from "../models";
+import { UPLOAD_CONTENT_TYPES, UPLOAD_LIMITS, VIDEO_CONTENT_TYPES } from "../models";
 
 const fileSchema = z.object({
   contentType: z.enum(UPLOAD_CONTENT_TYPES),
@@ -11,6 +11,14 @@ const fileSchema = z.object({
   width: z.number().int().positive().max(20_000),
   height: z.number().int().positive().max(20_000),
   takenAt: z.iso.datetime().optional(),
+  /** Present for video items: display/thumb are then poster frames. */
+  video: z
+    .object({
+      contentType: z.enum(VIDEO_CONTENT_TYPES),
+      bytes: z.number().int().positive().max(UPLOAD_LIMITS.maxBytes.video),
+      durationSec: z.number().positive().max(60 * 60),
+    })
+    .optional(),
 });
 
 /** Body of POST .../uploads (guest and host). */

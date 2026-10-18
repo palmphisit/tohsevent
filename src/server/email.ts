@@ -42,9 +42,9 @@ export function escapeHtml(value: string): string {
 
 /** Minimal branded layout shared by all emails. */
 export function emailLayout(bodyHtml: string, footerHtml = ""): string {
-  return `<!doctype html><html lang="th"><body style="margin:0;background:#f4f4f5;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#18181b">
+  return `<!doctype html><html lang="th"><body style="margin:0;background:#f1f5f9;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#18181b">
 <div style="max-width:520px;margin:0 auto;padding:32px 20px">
-<p style="font-weight:600;margin:0 0 20px">Tohs Event</p>
+<p style="font-weight:700;margin:0 0 20px;color:#2563eb">Tohs Event</p>
 <div style="background:#fff;border-radius:16px;padding:24px;line-height:1.6">${bodyHtml}</div>
 <p style="font-size:12px;color:#71717a;margin-top:16px">${footerHtml}</p>
 </div></body></html>`;

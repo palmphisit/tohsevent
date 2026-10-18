@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ApiError, createHostEvent, updateHostEvent, type HostEvent } from "@/lib/api-client";
 
 const inputClass =
-  "w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-zinc-900 disabled:bg-zinc-50";
+  "w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:bg-slate-50";
 
 const ERRORS: Record<string, string> = {
   slug_taken: "ลิงก์นี้ถูกใช้แล้ว ลองชื่ออื่น",
@@ -89,8 +89,8 @@ export function EventForm({ event }: { event?: HostEvent }) {
 
       {!editing && (
         <Field label="ลิงก์ของงาน (ไม่บังคับ)" hint="เว้นว่างไว้เพื่อสุ่มให้อัตโนมัติ เปลี่ยนภายหลังไม่ได้เพราะจะทำให้ QR ที่พิมพ์ไปแล้วใช้ไม่ได้">
-          <div className="flex items-center rounded-xl border border-zinc-300 focus-within:border-zinc-900">
-            <span className="pl-4 text-zinc-400">/e/</span>
+          <div className="flex items-center rounded-xl border border-slate-300 focus-within:border-primary">
+            <span className="pl-4 text-slate-400">/e/</span>
             <input
               value={slug}
               onChange={(e) => setSlug(e.target.value.toLowerCase())}
@@ -113,7 +113,7 @@ export function EventForm({ event }: { event?: HostEvent }) {
           ).map(([value, label, desc]) => (
             <label
               key={value}
-              className={`cursor-pointer rounded-xl border px-4 py-3 ${accessMode === value ? "border-zinc-900 bg-zinc-50" : "border-zinc-300"}`}
+              className={`cursor-pointer rounded-xl border px-4 py-3 ${accessMode === value ? "border-primary bg-primary-soft" : "border-slate-300"}`}
             >
               <input
                 type="radio"
@@ -124,7 +124,7 @@ export function EventForm({ event }: { event?: HostEvent }) {
                 className="sr-only"
               />
               <span className="block font-medium">{label}</span>
-              <span className="block text-xs text-zinc-500">{desc}</span>
+              <span className="block text-xs text-slate-500">{desc}</span>
             </label>
           ))}
         </div>
@@ -168,7 +168,7 @@ export function EventForm({ event }: { event?: HostEvent }) {
 
       <button
         disabled={pending}
-        className="w-full rounded-xl bg-zinc-900 px-4 py-3 font-medium text-white disabled:opacity-50 sm:w-auto sm:px-8"
+        className="w-full rounded-xl bg-primary hover:bg-primary-hover px-4 py-3 font-medium text-white disabled:opacity-50 sm:w-auto sm:px-8"
       >
         {pending ? "กำลังบันทึก…" : editing ? "บันทึกการเปลี่ยนแปลง" : "สร้างงาน"}
       </button>
@@ -181,7 +181,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div>
       <label className="mb-1.5 block text-sm font-medium">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-zinc-500">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
   );
 }
@@ -198,16 +198,16 @@ function Toggle({
   hint: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-zinc-300 px-4 py-3">
+    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-slate-300 px-4 py-3">
       <span>
         <span className="block font-medium">{label}</span>
-        <span className="block text-xs text-zinc-500">{hint}</span>
+        <span className="block text-xs text-slate-500">{hint}</span>
       </span>
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-1 h-5 w-5 shrink-0 accent-zinc-900"
+        className="mt-1 h-5 w-5 shrink-0 accent-primary"
       />
     </label>
   );
