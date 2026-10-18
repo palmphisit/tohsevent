@@ -49,6 +49,8 @@ function persistFiles(scope: string, entries: { id: string; file: File }[]) {
 export interface UploadTarget {
   /** Runs before each upload, e.g. to join the event as a guest. */
   prepare?: () => Promise<unknown>;
+  /** Also produce a watermarked copy (events on the Free plan). */
+  watermark?: boolean;
   reserve: (image: PreparedImage) => Promise<PresignedUpload>;
   complete: (photoId: string) => Promise<PublicPhoto>;
 }
@@ -61,7 +63,7 @@ async function uploadItem(target: UploadTarget, item: QueueItem, update: (patch:
   let { image, reservation } = item;
   if (!image) {
     update({ status: "processing", error: undefined });
-    image = await prepareImage(item.file);
+    image = await prepareImage(item.file, { watermark: target.watermark });
     update({ image, previewUrl: URL.createObjectURL(image.thumb) });
   }
 

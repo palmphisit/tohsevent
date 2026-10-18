@@ -38,10 +38,11 @@ export function GuestApp({ event, initialSession }: { event: PublicEvent; initia
   const uploadTarget = useMemo<UploadTarget>(
     () => ({
       prepare: ensureSession,
+      watermark: event.watermark,
       reserve: (image) => reserveUpload(event.slug, image),
       complete: async (photoId) => (await completeUpload(event.slug, photoId)).photo,
     }),
-    [ensureSession, event.slug],
+    [ensureSession, event.slug, event.watermark],
   );
 
   if (event.accessMode === "password" && !session) {

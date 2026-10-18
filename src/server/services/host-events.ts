@@ -26,6 +26,7 @@ export interface HostEvent {
     maxGuests: number;
     maxPhotos: number;
     retentionDays: number;
+    watermark: boolean;
   };
   usage: { guests: number; photos: number };
   /** ISO date-time the album closes to guests; null for legacy events without expiry. */
@@ -55,6 +56,7 @@ export function toHostEvent(event: EventDoc): HostEvent {
       maxGuests: plan.maxGuests,
       maxPhotos: plan.maxPhotos,
       retentionDays: plan.retentionDays,
+      watermark: plan.watermark,
     },
     usage: { guests: event.counters.guests, photos: event.usage?.photos ?? event.counters.photos },
     expiresAt: event.expiresAt?.toISOString() ?? null,

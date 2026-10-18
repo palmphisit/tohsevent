@@ -6,6 +6,7 @@ const fileSchema = z.object({
   bytes: z.object({
     display: z.number().int().positive().max(UPLOAD_LIMITS.maxBytes.display),
     thumb: z.number().int().positive().max(UPLOAD_LIMITS.maxBytes.thumb),
+    watermarked: z.number().int().positive().max(UPLOAD_LIMITS.maxBytes.watermarked).optional(),
   }),
   width: z.number().int().positive().max(20_000),
   height: z.number().int().positive().max(20_000),

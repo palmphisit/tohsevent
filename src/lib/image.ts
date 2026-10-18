@@ -10,8 +10,38 @@ export const IMAGE_VARIANTS = {
 export interface PreparedImage {
   display: Blob;
   thumb: Blob;
+  /** Display-size copy with the platform watermark (Free events only). */
+  watermarked?: Blob;
   width: number;
   height: number;
+}
+
+export const WATERMARK_TEXT = "Tohs Event";
+
+/** Draws the platform mark in the bottom-right corner (rounded dark pill, white text). */
+function drawWatermark(source: HTMLCanvasElement): HTMLCanvasElement {
+  const canvas = draw(source, source.width, source.height);
+  const ctx = canvas.getContext("2d")!;
+  const short = Math.min(canvas.width, canvas.height);
+  const fontSize = Math.max(16, Math.round(short * 0.045));
+  const padX = Math.round(fontSize * 0.7);
+  const padY = Math.round(fontSize * 0.45);
+  const margin = Math.round(short * 0.03);
+  ctx.font = `600 ${fontSize}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+  ctx.textBaseline = "middle";
+  const textWidth = ctx.measureText(WATERMARK_TEXT).width;
+  const boxW = textWidth + padX * 2;
+  const boxH = fontSize + padY * 2;
+  const x = canvas.width - boxW - margin;
+  const y = canvas.height - boxH - margin;
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+  ctx.beginPath();
+  ctx.roundRect(x, y, boxW, boxH, boxH / 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+  ctx.fillText(WATERMARK_TEXT, x + padX, y + boxH / 2);
+  return canvas;
 }
 
 type Decoded = { source: CanvasImageSource; width: number; height: number; release: () => void };
@@ -57,7 +87,7 @@ function toJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   });
 }
 
-export async function prepareImage(file: Blob): Promise<PreparedImage> {
+export async function prepareImage(file: Blob, options: { watermark?: boolean } = {}): Promise<PreparedImage> {
   const decoded = await decode(file);
   try {
     const size = fit(decoded.width, decoded.height, IMAGE_VARIANTS.display.maxEdge);
@@ -65,13 +95,16 @@ export async function prepareImage(file: Blob): Promise<PreparedImage> {
     const thumbSize = fit(size.width, size.height, IMAGE_VARIANTS.thumb.maxEdge);
     const thumbCanvas = draw(displayCanvas, thumbSize.width, thumbSize.height);
 
-    const [display, thumb] = await Promise.all([
+    const watermarkCanvas = options.watermark ? drawWatermark(displayCanvas) : null;
+
+    const [display, thumb, watermarked] = await Promise.all([
       toJpeg(displayCanvas, IMAGE_VARIANTS.display.quality),
       toJpeg(thumbCanvas, IMAGE_VARIANTS.thumb.quality),
+      watermarkCanvas ? toJpeg(watermarkCanvas, IMAGE_VARIANTS.display.quality) : undefined,
     ]);
     // Release canvas backing stores early; iOS Safari caps total canvas memory.
-    displayCanvas.width = displayCanvas.height = thumbCanvas.width = thumbCanvas.height = 0;
-    return { display, thumb, width: size.width, height: size.height };
+    for (const c of [displayCanvas, thumbCanvas, watermarkCanvas]) if (c) c.width = c.height = 0;
+    return { display, thumb, watermarked, width: size.width, height: size.height };
   } finally {
     decoded.release();
   }

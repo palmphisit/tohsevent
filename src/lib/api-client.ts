@@ -55,7 +55,11 @@ function uploadBody(image: PreparedImage): string {
     files: [
       {
         contentType: "image/jpeg",
-        bytes: { display: image.display.size, thumb: image.thumb.size },
+        bytes: {
+          display: image.display.size,
+          thumb: image.thumb.size,
+          ...(image.watermarked ? { watermarked: image.watermarked.size } : {}),
+        },
         width: image.width,
         height: image.height,
       },
@@ -74,9 +78,12 @@ export async function reserveUpload(slug: string, image: PreparedImage): Promise
 /** PUTs the blobs straight to object storage using the presigned URLs. */
 export async function putToStorage(reservation: PresignedUpload, image: PreparedImage): Promise<void> {
   await Promise.all(
-    (["display", "thumb"] as const).map(async (variant) => {
+    (["display", "thumb", "watermarked"] as const).map(async (variant) => {
       const target = reservation.uploads[variant];
-      const res = await fetch(target.url, { method: target.method, headers: target.headers, body: image[variant] });
+      const body = image[variant];
+      if (!target) return;
+      if (!body) throw new ApiError(400, "missing_variant", `No ${variant} image to upload`);
+      const res = await fetch(target.url, { method: target.method, headers: target.headers, body });
       if (!res.ok) throw new ApiError(res.status, "storage_upload_failed", `Upload of ${variant} failed (${res.status})`);
     }),
   );

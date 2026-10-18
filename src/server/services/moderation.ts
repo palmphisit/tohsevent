@@ -17,9 +17,9 @@ export interface HostPhoto extends PublicPhoto {
   openReports: number;
 }
 
-function toHostPhoto(photo: PhotoDoc): HostPhoto {
+function toHostPhoto(photo: PhotoDoc, event: EventDoc): HostPhoto {
   return {
-    ...toPublicPhoto(photo),
+    ...toPublicPhoto(photo, event, { clean: true }),
     status: photo.status === "hidden" ? "hidden" : "ready",
     openReports: photo.openReports ?? 0,
   };
@@ -43,7 +43,7 @@ export async function listHostPhotos(
     .toArray();
   const hasMore = docs.length > options.limit;
   const page = hasMore ? docs.slice(0, options.limit) : docs;
-  return { items: page.map(toHostPhoto), nextCursor: hasMore ? page[page.length - 1]._id.toHexString() : null };
+  return { items: page.map((photo) => toHostPhoto(photo, event)), nextCursor: hasMore ? page[page.length - 1]._id.toHexString() : null };
 }
 
 async function closeReports(photoId: ObjectId, status: Exclude<ReportDoc["status"], "open">) {
@@ -82,7 +82,7 @@ export async function moderatePhoto(
   }
   if (action.dismissReports) await closeReports(photoId, "dismissed");
 
-  return toHostPhoto(await requirePhoto(event, photoId));
+  return toHostPhoto(await requirePhoto(event, photoId), event);
 }
 
 /** Soft-deletes the photo record (kept for audit) and removes the files from storage. */

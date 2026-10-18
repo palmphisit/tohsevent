@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { planOf } from "@/server/models";
 import { countOpenReports } from "@/server/services/moderation";
 import { loadHostEventPage } from "../load-event";
 import { PhotoModeration } from "./photo-moderation";
@@ -25,7 +26,7 @@ async function PhotosLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/p
         ← {event.title}
       </Link>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">จัดการรูปภาพ</h1>
-      <PhotoModeration eventId={id} openReports={openReports} />
+      <PhotoModeration eventId={id} openReports={openReports} watermark={planOf(event).watermark} />
     </>
   );
 }

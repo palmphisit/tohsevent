@@ -20,7 +20,15 @@ const TABS: { view: HostPhotoView; label: string }[] = [
   { view: "reported", label: "ถูกรายงาน" },
 ];
 
-export function PhotoModeration({ eventId, openReports }: { eventId: string; openReports: number }) {
+export function PhotoModeration({
+  eventId,
+  openReports,
+  watermark,
+}: {
+  eventId: string;
+  openReports: number;
+  watermark: boolean;
+}) {
   const [view, setView] = useState<HostPhotoView>(openReports > 0 ? "reported" : "guest");
   const [reportCount, setReportCount] = useState(openReports);
 
@@ -47,6 +55,7 @@ export function PhotoModeration({ eventId, openReports }: { eventId: string; ope
         key={view}
         eventId={eventId}
         view={view}
+        watermark={watermark}
         onReportsResolved={(n) => setReportCount((c) => Math.max(0, c - n))}
       />
     </div>
@@ -56,10 +65,12 @@ export function PhotoModeration({ eventId, openReports }: { eventId: string; ope
 function ModerationGrid({
   eventId,
   view,
+  watermark,
   onReportsResolved,
 }: {
   eventId: string;
   view: HostPhotoView;
+  watermark: boolean;
   onReportsResolved: (photos: number) => void;
 }) {
   const [photos, setPhotos] = useState<HostPhoto[]>([]);
@@ -130,10 +141,11 @@ function ModerationGrid({
   );
   const uploadTarget = useMemo<UploadTarget>(
     () => ({
+      watermark,
       reserve: (image) => reserveOfficialUpload(eventId, image),
       complete: (photoId) => completeOfficialUpload(eventId, photoId),
     }),
-    [eventId],
+    [eventId, watermark],
   );
 
   return (
@@ -148,6 +160,7 @@ function ModerationGrid({
           />
           <p className="mt-2 text-xs text-zinc-500">
             รูปจะถูกย่อเป็นความละเอียด 2560px ก่อนอัปโหลด การอัปโหลดไฟล์ต้นฉบับความละเอียดสูงจะมาพร้อมแอปสำหรับช่างภาพ
+            {watermark && " · แพ็กเกจ Free: แขกจะเห็นรูปพร้อมลายน้ำ Tohs Event จนกว่าจะอัปเกรด"}
           </p>
         </div>
       )}

@@ -59,16 +59,21 @@ export interface GuestSessionDoc {
 
 export type PhotoSource = "guest" | "official";
 export type PhotoStatus = "pending" | "ready" | "hidden" | "deleted";
-export type PhotoVariant = "display" | "thumb";
+export type RequiredVariant = "display" | "thumb";
+export type PhotoVariant = RequiredVariant | "watermarked";
 
 export interface PhotoDoc {
   _id: ObjectId;
   eventId: ObjectId;
   source: PhotoSource;
   uploader: { type: "guest" | "user"; id: ObjectId; displayName: string | null };
-  keys: Record<PhotoVariant, string> & { original?: string };
+  /**
+   * `watermarked` exists for photos uploaded while the event was on a watermarked plan;
+   * the clean `display` key then has a random suffix so it cannot be guessed from it.
+   */
+  keys: Record<RequiredVariant, string> & { watermarked?: string; original?: string };
   contentType: UploadContentType;
-  bytes: Record<PhotoVariant, number>;
+  bytes: Record<RequiredVariant, number> & { watermarked?: number };
   width: number;
   height: number;
   takenAt: Date | null;
@@ -100,6 +105,10 @@ export type UploadContentType = (typeof UPLOAD_CONTENT_TYPES)[number];
 
 export const UPLOAD_LIMITS = {
   maxFilesPerRequest: 10,
-  maxBytes: { display: 8 * 1024 * 1024, thumb: 1024 * 1024 } satisfies Record<PhotoVariant, number>,
+  maxBytes: {
+    display: 8 * 1024 * 1024,
+    thumb: 1024 * 1024,
+    watermarked: 8 * 1024 * 1024,
+  } satisfies Record<PhotoVariant, number>,
   presignExpiresSeconds: 10 * 60,
 } as const;

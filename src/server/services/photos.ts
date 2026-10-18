@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { ObjectId, type Filter } from "mongodb";
 import { collections } from "../db";
 import { HttpError } from "../http";
@@ -12,24 +13,34 @@ import {
 import { headObject, presignPut, publicUrl } from "../storage";
 import { incrementEventCounter } from "./events";
 
-const VARIANTS: PhotoVariant[] = ["display", "thumb"];
 const EXTENSIONS: Record<UploadContentType, string> = { "image/jpeg": "jpg", "image/webp": "webp" };
 
 export interface UploadRequestFile {
   contentType: UploadContentType;
-  bytes: Record<PhotoVariant, number>;
+  bytes: PhotoDoc["bytes"];
   width: number;
   height: number;
   takenAt?: string;
 }
 
-export interface PresignedUpload {
-  photoId: string;
-  uploads: Record<PhotoVariant, { url: string; method: "PUT"; headers: Record<string, string> }>;
+interface UploadTarget {
+  url: string;
+  method: "PUT";
+  headers: Record<string, string>;
 }
 
-function photoKey(eventId: ObjectId, photoId: ObjectId, variant: PhotoVariant, contentType: UploadContentType) {
-  return `events/${eventId.toHexString()}/photos/${photoId.toHexString()}/${variant}.${EXTENSIONS[contentType]}`;
+export interface PresignedUpload {
+  photoId: string;
+  uploads: { display: UploadTarget; thumb: UploadTarget; watermarked?: UploadTarget };
+}
+
+function photoKey(eventId: ObjectId, photoId: ObjectId, name: string, contentType: UploadContentType) {
+  return `events/${eventId.toHexString()}/photos/${photoId.toHexString()}/${name}.${EXTENSIONS[contentType]}`;
+}
+
+/** Variants a photo was uploaded with (always display + thumb, plus watermarked on Free events). */
+function variantsOf(photo: Pick<PhotoDoc, "keys">): PhotoVariant[] {
+  return photo.keys.watermarked ? ["display", "thumb", "watermarked"] : ["display", "thumb"];
 }
 
 type Uploader = PhotoDoc["uploader"];
@@ -65,21 +76,29 @@ async function createPendingPhotos(
   uploader: Uploader,
   files: UploadRequestFile[],
 ): Promise<PresignedUpload[]> {
+  const watermark = planOf(event).watermark;
+  if (watermark && files.some((file) => !file.bytes.watermarked)) {
+    throw new HttpError(400, "watermark_required", "Photos for this event must include the watermarked variant");
+  }
+
   const { photos } = await collections();
   const now = new Date();
   const docs: PhotoDoc[] = files.map((file) => {
     const _id = new ObjectId();
+    const key = (name: string) => photoKey(event._id, _id, name, file.contentType);
     return {
       _id,
       eventId: event._id,
       source,
       uploader,
-      keys: {
-        display: photoKey(event._id, _id, "display", file.contentType),
-        thumb: photoKey(event._id, _id, "thumb", file.contentType),
-      },
+      // Guests only ever get the watermarked URL, so the clean file sits behind a random name.
+      keys: watermark
+        ? { display: key(`display-${randomBytes(12).toString("hex")}`), thumb: key("thumb"), watermarked: key("watermarked") }
+        : { display: key("display"), thumb: key("thumb") },
       contentType: file.contentType,
-      bytes: file.bytes,
+      bytes: watermark
+        ? { display: file.bytes.display, thumb: file.bytes.thumb, watermarked: file.bytes.watermarked }
+        : { display: file.bytes.display, thumb: file.bytes.thumb },
       width: file.width,
       height: file.height,
       takenAt: file.takenAt ? new Date(file.takenAt) : null,
@@ -93,13 +112,17 @@ async function createPendingPhotos(
 
   return Promise.all(
     docs.map(async (doc) => {
-      const presign = async (variant: PhotoVariant) => ({
-        url: await presignPut(doc.keys[variant], doc.contentType, doc.bytes[variant]),
-        method: "PUT" as const,
+      const presign = async (variant: PhotoVariant): Promise<UploadTarget> => ({
+        url: await presignPut(doc.keys[variant]!, doc.contentType, doc.bytes[variant]!),
+        method: "PUT",
         headers: { "Content-Type": doc.contentType },
       });
-      const [display, thumb] = await Promise.all([presign("display"), presign("thumb")]);
-      return { photoId: doc._id.toHexString(), uploads: { display, thumb } };
+      const [display, thumb, watermarked] = await Promise.all([
+        presign("display"),
+        presign("thumb"),
+        doc.keys.watermarked ? presign("watermarked") : undefined,
+      ]);
+      return { photoId: doc._id.toHexString(), uploads: { display, thumb, ...(watermarked ? { watermarked } : {}) } };
     }),
   );
 }
@@ -155,10 +178,11 @@ export async function completeUpload(event: EventDoc, uploaderId: ObjectId, phot
   const { photos } = await collections();
   const photo = await photos.findOne({ _id: photoId, eventId: event._id, "uploader.id": uploaderId });
   if (!photo) throw new HttpError(404, "photo_not_found");
-  if (photo.status !== "pending") return toPublicPhoto(photo);
+  if (photo.status !== "pending") return toPublicPhoto(photo, event);
 
-  const heads = await Promise.all(VARIANTS.map((variant) => headObject(photo.keys[variant])));
-  VARIANTS.forEach((variant, i) => {
+  const variants = variantsOf(photo);
+  const heads = await Promise.all(variants.map((variant) => headObject(photo.keys[variant]!)));
+  variants.forEach((variant, i) => {
     const head = heads[i];
     if (!head) throw new HttpError(409, "upload_incomplete", `The ${variant} file has not been uploaded yet`);
     if (head.ContentLength !== photo.bytes[variant] || head.ContentType !== photo.contentType) {
@@ -172,7 +196,7 @@ export async function completeUpload(event: EventDoc, uploaderId: ObjectId, phot
     { returnDocument: "after" },
   );
   if (updated) await incrementEventCounter(event._id, "photos");
-  return toPublicPhoto(updated ?? photo);
+  return toPublicPhoto(updated ?? photo, event);
 }
 
 export interface PublicPhoto {
@@ -186,13 +210,19 @@ export interface PublicPhoto {
   createdAt: string;
 }
 
-export function toPublicPhoto(photo: PhotoDoc): PublicPhoto {
+/**
+ * Guest-facing shape. While the event is on a watermarked plan, guests get the watermarked
+ * copy; after an upgrade the same photos switch to the clean file. Hosts always see clean
+ * files (pass `{ clean: true }`).
+ */
+export function toPublicPhoto(photo: PhotoDoc, event: Pick<EventDoc, "plan">, options: { clean?: boolean } = {}): PublicPhoto {
+  const showWatermarked = !options.clean && planOf(event).watermark && !!photo.keys.watermarked;
   return {
     id: photo._id.toHexString(),
     source: photo.source,
     uploaderName: photo.uploader.displayName,
     thumbUrl: publicUrl(photo.keys.thumb),
-    displayUrl: publicUrl(photo.keys.display),
+    displayUrl: publicUrl(showWatermarked ? photo.keys.watermarked! : photo.keys.display),
     width: photo.width,
     height: photo.height,
     createdAt: photo.createdAt.toISOString(),
@@ -215,7 +245,7 @@ export async function listEventPhotos(
   const hasMore = docs.length > options.limit;
   const page = hasMore ? docs.slice(0, options.limit) : docs;
   return {
-    items: page.map(toPublicPhoto),
+    items: page.map((photo) => toPublicPhoto(photo, event)),
     nextCursor: hasMore ? page[page.length - 1]._id.toHexString() : null,
   };
 }

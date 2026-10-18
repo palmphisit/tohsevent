@@ -1,7 +1,7 @@
 import type { ObjectId } from "mongodb";
 import { collections } from "../db";
 import { HttpError } from "../http";
-import type { EventDoc } from "../models";
+import { planOf, type EventDoc } from "../models";
 
 /** Shape of an event that is safe to send to guests. */
 export interface PublicEvent {
@@ -11,6 +11,8 @@ export interface PublicEvent {
   date: string;
   accessMode: EventDoc["access"]["mode"];
   guestUpload: boolean;
+  /** Free plan: guests' uploads must include a watermarked copy (see lib/image.ts). */
+  watermark: boolean;
 }
 
 export function toPublicEvent(event: EventDoc): PublicEvent {
@@ -21,6 +23,7 @@ export function toPublicEvent(event: EventDoc): PublicEvent {
     date: event.date.toISOString(),
     accessMode: event.access.mode,
     guestUpload: event.settings.guestUpload,
+    watermark: planOf(event).watermark,
   };
 }
 

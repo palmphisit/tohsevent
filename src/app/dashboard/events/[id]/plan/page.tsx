@@ -135,6 +135,7 @@ function PlanCard({ plan, current, children }: { plan: Plan; current: boolean; c
         <li>รูปรวมทั้งงาน {thb(plan.maxPhotos)} รูป</li>
         <li>แขกอัปโหลดได้คนละ {thb(plan.maxPhotosPerGuest)} รูป</li>
         <li>เก็บอัลบั้ม {plan.retentionDays} วันหลังวันงาน</li>
+        <li>{plan.watermark ? "รูปที่แขกเห็นมีลายน้ำ Tohs Event" : "ไม่มีลายน้ำ (รูปเดิมก็เปลี่ยนเป็นไม่มีลายน้ำทันที)"}</li>
         {plan.branding && <li>Custom Branding + แบนเนอร์ผู้สนับสนุน (เร็ว ๆ นี้)</li>}
       </ul>
       {children && <div className="mt-5">{children}</div>}
