@@ -3,11 +3,12 @@
 import type { ReportReason } from "@/server/models";
 import type { CreateEventInput, HostEvent, UpdateEventInput } from "@/server/services/host-events";
 import type { PublicEvent } from "@/server/services/events";
+import type { BrandingAsset, BrandingAssetKind, BrandingEditorState, SaveBrandingInput } from "@/server/services/branding";
 import type { HostPhoto, HostPhotoView } from "@/server/services/moderation";
 import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
 import type { PreparedImage } from "./image";
 
-export type { CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
+export type { BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -151,4 +152,22 @@ export async function startUpgradeCheckout(eventId: string, tier: "standard" | "
     body: JSON.stringify({ tier }),
   });
   return url;
+}
+
+/** Uploads a logo / cover / sponsor image; returns its storage key and public URL. */
+export async function uploadBrandingAsset(eventId: string, kind: BrandingAssetKind, blob: Blob): Promise<BrandingAsset> {
+  const created = await request<{ key: string; url: string; upload: { url: string; method: "PUT"; headers: Record<string, string> } }>(
+    `${hostBase(eventId)}/branding/assets`,
+    { method: "POST", body: JSON.stringify({ kind, contentType: blob.type, bytes: blob.size }) },
+  );
+  const res = await fetch(created.upload.url, { method: created.upload.method, headers: created.upload.headers, body: blob });
+  if (!res.ok) throw new ApiError(res.status, "storage_upload_failed", `Upload failed (${res.status})`);
+  return { key: created.key, url: created.url };
+}
+
+export function saveBranding(eventId: string, input: SaveBrandingInput) {
+  return request<{ branding: BrandingEditorState }>(`${hostBase(eventId)}/branding`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 }

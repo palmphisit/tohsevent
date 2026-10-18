@@ -57,6 +57,17 @@ async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">
       </Link>
 
       <Link
+        href={`/dashboard/events/${event.id}/branding`}
+        className="mt-3 flex items-center justify-between rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
+      >
+        <span>
+          <span className="block font-medium">ปรับแต่งหน้างาน</span>
+          <span className="block text-sm text-zinc-500">สี, ฟอนต์, โลโก้, รูปปก และผู้สนับสนุน (Premium)</span>
+        </span>
+        <span className="text-zinc-400">›</span>
+      </Link>
+
+      <Link
         href={`/dashboard/events/${event.id}/photos`}
         className="mt-3 flex items-center justify-between rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
       >

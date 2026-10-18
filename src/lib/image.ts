@@ -109,3 +109,25 @@ export async function prepareImage(file: Blob, options: { watermark?: boolean } 
     decoded.release();
   }
 }
+
+/**
+ * Single resized copy for branding images. PNG keeps transparency (logos); JPEG is
+ * smaller for photos (cover).
+ */
+export async function resizeImage(
+  file: Blob,
+  options: { maxEdge: number; type: "image/png" | "image/jpeg"; quality?: number },
+): Promise<Blob> {
+  const decoded = await decode(file);
+  try {
+    const size = fit(decoded.width, decoded.height, options.maxEdge);
+    const canvas = draw(decoded.source, size.width, size.height);
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Image encoding failed"))), options.type, options.quality),
+    );
+    canvas.width = canvas.height = 0;
+    return blob;
+  } finally {
+    decoded.release();
+  }
+}

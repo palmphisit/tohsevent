@@ -1,6 +1,7 @@
 import { collections } from "../db";
 import { PURGE_GRACE_DAYS } from "../plans";
 import { deleteObjects } from "../storage";
+import { brandingKeys } from "./branding";
 import { releasePhotoQuota } from "./photos";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -86,6 +87,7 @@ async function purgeExpiredAlbums(now: Date): Promise<{ photosPurged: number; al
 
     const remaining = await photos.countDocuments({ eventId: event._id, status: { $in: ["pending", "ready", "hidden"] } });
     if (remaining === 0) {
+      await deleteObjects(brandingKeys(event.branding));
       await events.updateOne(
         { _id: event._id },
         { $set: { purgedAt: now, "counters.photos": 0, "usage.photos": 0, updatedAt: now } },

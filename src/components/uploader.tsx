@@ -220,7 +220,7 @@ export function Uploader({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="w-full rounded-xl bg-zinc-900 px-4 py-4 text-lg font-medium text-white active:scale-[0.99]"
+        className="w-full rounded-xl bg-brand px-4 py-4 text-lg font-medium text-brand-contrast active:scale-[0.99]"
       >
         {label}
       </button>

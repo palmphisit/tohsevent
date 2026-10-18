@@ -1,4 +1,5 @@
 import type { ObjectId } from "mongodb";
+import type { BrandFontId } from "../lib/brand-fonts";
 import { PLANS, type Plan, type PlanTier } from "./plans";
 
 export type EventAccessMode = "public" | "password";
@@ -25,7 +26,26 @@ export interface EventDoc {
   usage?: { photos: number };
   /** Set once the files of an expired album have been deleted. */
   purgedAt?: Date | null;
+  /** Custom look of the guest page (Premium). Storage keys point to events/<id>/branding/*. */
+  branding?: BrandingDoc;
   createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SponsorDoc {
+  id: string;
+  name: string;
+  imageKey: string;
+  linkUrl: string | null;
+}
+
+export interface BrandingDoc {
+  primaryColor: string;
+  fontId: BrandFontId;
+  logoKey: string | null;
+  coverKey: string | null;
+  welcomeMessage: string | null;
+  sponsors: SponsorDoc[];
   updatedAt: Date;
 }
 

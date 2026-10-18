@@ -9,6 +9,9 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-noto-sans-thai), ui-sans-serif, system-ui, sans-serif;
+  /* Event branding (Premium): set --brand / --brand-contrast on a wrapper element. */
+  --color-brand: var(--brand, #18181b);
+  --color-brand-contrast: var(--brand-contrast, #ffffff);
 }
 
 body {

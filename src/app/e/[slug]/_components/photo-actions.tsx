@@ -134,7 +134,7 @@ export function ReportPhotoButton({
               </button>
               <button
                 disabled={state === "sending"}
-                className="flex-1 rounded-xl bg-zinc-900 py-3 font-medium text-white disabled:opacity-50"
+                className="flex-1 rounded-xl bg-brand py-3 font-medium text-brand-contrast disabled:opacity-50"
               >
                 {state === "sending" ? "กำลังส่ง…" : "ส่ง"}
               </button>
