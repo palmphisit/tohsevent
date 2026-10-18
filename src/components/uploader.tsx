@@ -26,13 +26,18 @@ function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === "quota_exceeded") return "อัปโหลดครบจำนวนที่งานกำหนดแล้ว";
     if (error.code === "uploads_disabled") return "งานนี้ปิดรับรูปแล้ว";
+    if (error.code === "photo_limit_reached") return "อัลบั้มนี้เต็มแล้ว";
+    if (error.code === "event_full") return "งานนี้มีแขกครบจำนวนแล้ว";
   }
   return "อัปโหลดไม่สำเร็จ";
 }
 
 /** Errors that retrying will not fix; such files are dropped from the resume store. */
 function isPermanent(error: unknown): boolean {
-  return error instanceof ApiError && (error.code === "quota_exceeded" || error.code === "uploads_disabled");
+  return (
+    error instanceof ApiError &&
+    ["quota_exceeded", "uploads_disabled", "photo_limit_reached", "event_full"].includes(error.code)
+  );
 }
 
 function persistFiles(scope: string, entries: { id: string; file: File }[]) {

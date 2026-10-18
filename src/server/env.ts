@@ -14,6 +14,10 @@ const schema = z.object({
   AUTH_SECRET: z.string().min(32),
   /** Shared secret Cloud Scheduler sends to /api/internal/*. Internal jobs are disabled when unset. */
   CRON_SECRET: z.string().min(32).optional(),
+  /** Stripe secret key (sk_test_... / sk_live_...). Paid upgrades are disabled when unset. */
+  STRIPE_SECRET_KEY: z.string().startsWith("sk_").optional(),
+  /** Signing secret of the Stripe webhook endpoint (whsec_...). */
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
 });
 
 export type Env = z.infer<typeof schema>;

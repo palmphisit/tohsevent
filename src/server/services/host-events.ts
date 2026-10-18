@@ -4,12 +4,12 @@ import { requireHost, type Host } from "../auth";
 import { collections } from "../db";
 import { env } from "../env";
 import { HttpError, parseObjectId } from "../http";
-import type { EventDoc, EventStatus } from "../models";
+import { planOf, type EventDoc, type EventStatus } from "../models";
 import { hashPassword } from "../password";
+import { expiryFor, PLANS, type PlanTier } from "../plans";
 
 const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"; // no look-alikes (i/l/1, o/0)
 export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
-const DEFAULT_MAX_PHOTOS_PER_GUEST = 200;
 
 export interface HostEvent {
   id: string;
@@ -20,6 +20,16 @@ export interface HostEvent {
   guestUpload: boolean;
   status: EventStatus;
   counters: EventDoc["counters"];
+  plan: {
+    tier: PlanTier;
+    name: string;
+    maxGuests: number;
+    maxPhotos: number;
+    retentionDays: number;
+  };
+  usage: { guests: number; photos: number };
+  /** ISO date-time the album closes to guests; null for legacy events without expiry. */
+  expiresAt: string | null;
   guestUrl: string;
   createdAt: string;
 }
@@ -29,6 +39,7 @@ export function guestEventUrl(slug: string): string {
 }
 
 export function toHostEvent(event: EventDoc): HostEvent {
+  const plan = planOf(event);
   return {
     id: event._id.toHexString(),
     slug: event.slug,
@@ -38,6 +49,15 @@ export function toHostEvent(event: EventDoc): HostEvent {
     guestUpload: event.settings.guestUpload,
     status: event.status,
     counters: event.counters,
+    plan: {
+      tier: plan.tier,
+      name: plan.name,
+      maxGuests: plan.maxGuests,
+      maxPhotos: plan.maxPhotos,
+      retentionDays: plan.retentionDays,
+    },
+    usage: { guests: event.counters.guests, photos: event.usage?.photos ?? event.counters.photos },
+    expiresAt: event.expiresAt?.toISOString() ?? null,
     guestUrl: guestEventUrl(event.slug),
     createdAt: event.createdAt.toISOString(),
   };
@@ -90,18 +110,23 @@ export async function createHostEvent(ownerId: ObjectId, input: CreateEventInput
   }
   const { events } = await collections();
   const now = new Date();
+  const date = parseDay(input.date);
   const base: Omit<EventDoc, "_id" | "slug"> = {
     ownerId,
     title: input.title,
-    date: parseDay(input.date),
+    date,
     access:
       input.accessMode === "password"
         ? { mode: "password", passwordHash: await hashPassword(input.password!) }
         : { mode: "public" },
-    settings: { guestUpload: true, moderation: "post", maxPhotosPerGuest: DEFAULT_MAX_PHOTOS_PER_GUEST },
+    settings: { guestUpload: true, moderation: "post", maxPhotosPerGuest: PLANS.free.maxPhotosPerGuest },
     status: "live",
-    expiresAt: null,
+    // Every event starts on the Free plan; upgrading extends the expiry (see billing.ts).
+    plan: { tier: "free", upgradedAt: null },
+    expiresAt: expiryFor(date, "free", now),
     counters: { photos: 0, guests: 0 },
+    usage: { photos: 0 },
+    purgedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -131,10 +156,17 @@ export interface UpdateEventInput {
 
 export async function updateHostEvent(ownerId: ObjectId, eventId: ObjectId, input: UpdateEventInput): Promise<EventDoc> {
   const current = await getHostEvent(ownerId, eventId);
+  if (current.status === "expired" && input.status !== undefined) {
+    throw new HttpError(409, "event_expired", "This album has expired; upgrade the plan to reopen it");
+  }
   const set: Record<string, unknown> = { updatedAt: new Date() };
 
   if (input.title !== undefined) set.title = input.title;
-  if (input.date !== undefined) set.date = parseDay(input.date);
+  if (input.date !== undefined) {
+    const date = parseDay(input.date);
+    set.date = date;
+    set.expiresAt = expiryFor(date, planOf(current).tier);
+  }
   if (input.guestUpload !== undefined) set["settings.guestUpload"] = input.guestUpload;
   if (input.status !== undefined) set.status = input.status;
 

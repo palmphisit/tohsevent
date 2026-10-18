@@ -4,7 +4,7 @@ import { HttpError } from "../http";
 import type { EventDoc, PhotoDoc, ReportDoc, ReportReason } from "../models";
 import { deleteObjects } from "../storage";
 import { incrementEventCounter } from "./events";
-import { toPublicPhoto, type PublicPhoto } from "./photos";
+import { releasePhotoQuota, toPublicPhoto, type PublicPhoto } from "./photos";
 
 // Host-side moderation (hide / delete / review reports) and guest reports.
 // `counters.photos` tracks photos guests can see, so it moves with visibility.
@@ -94,6 +94,7 @@ export async function deletePhoto(event: EventDoc, photoId: ObjectId): Promise<v
   );
   if (!before) throw new HttpError(404, "photo_not_found");
   if (before.status === "ready") await incrementEventCounter(event._id, "photos", -1);
+  await releasePhotoQuota(event._id, 1);
   await closeReports(photoId, "resolved");
   await deleteObjects(Object.values(before.keys).filter((key): key is string => !!key));
 }

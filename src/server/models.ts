@@ -1,4 +1,5 @@
 import type { ObjectId } from "mongodb";
+import { PLANS, type Plan, type PlanTier } from "./plans";
 
 export type EventAccessMode = "public" | "password";
 export type EventStatus = "draft" | "live" | "closed" | "expired";
@@ -17,9 +18,33 @@ export interface EventDoc {
   };
   status: EventStatus;
   expiresAt: Date | null;
+  /** Missing on events created before packages existed: treated as Free. */
+  plan?: { tier: PlanTier; upgradedAt: Date | null };
+  /** `counters.photos` = photos guests can see; `usage.photos` = all stored photos (counts toward the plan). */
   counters: { photos: number; guests: number };
+  usage?: { photos: number };
+  /** Set once the files of an expired album have been deleted. */
+  purgedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export function planOf(event: Pick<EventDoc, "plan">): Plan {
+  return PLANS[event.plan?.tier ?? "free"];
+}
+
+export interface PaymentDoc {
+  _id: ObjectId;
+  eventId: ObjectId;
+  ownerId: ObjectId;
+  fromTier: PlanTier;
+  toTier: PlanTier;
+  amountThb: number;
+  provider: "stripe";
+  stripeSessionId: string | null;
+  status: "pending" | "paid" | "failed" | "expired";
+  createdAt: Date;
+  paidAt: Date | null;
 }
 
 export interface GuestSessionDoc {

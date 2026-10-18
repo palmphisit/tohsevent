@@ -90,6 +90,8 @@ async function seedDemoEvents() {
     settings: { guestUpload: true, moderation: "post", maxPhotosPerGuest: 200 },
     status: "live",
     expiresAt: null,
+    // Premium so local load tests are not capped by Free plan limits.
+    plan: { tier: "premium", upgradedAt: null },
     counters: { photos: 0, guests: 0 },
     createdAt: now,
     updatedAt: now,

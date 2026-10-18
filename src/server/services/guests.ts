@@ -3,9 +3,8 @@ import type { NextRequest } from "next/server";
 import { collections } from "../db";
 import { readGuestSession } from "../guest-session";
 import { HttpError } from "../http";
-import type { EventDoc, GuestSessionDoc } from "../models";
+import { planOf, type EventDoc, type GuestSessionDoc } from "../models";
 import { verifyPassword } from "../password";
-import { incrementEventCounter } from "./events";
 
 export async function findGuestSession(event: EventDoc, sessionId: string): Promise<GuestSessionDoc | null> {
   if (!ObjectId.isValid(sessionId)) return null;
@@ -23,6 +22,14 @@ export async function joinEvent(
     if (!ok) throw new HttpError(401, "invalid_password", "Incorrect event password");
   }
 
+  const { events, guestSessions } = await collections();
+  // Atomically take a guest slot so concurrent joins cannot exceed the plan's limit.
+  const reserved = await events.findOneAndUpdate(
+    { _id: event._id, "counters.guests": { $lt: planOf(event).maxGuests } },
+    { $inc: { "counters.guests": 1 }, $set: { updatedAt: new Date() } },
+  );
+  if (!reserved) throw new HttpError(403, "event_full", "This event has reached its guest limit");
+
   const session: GuestSessionDoc = {
     _id: new ObjectId(),
     eventId: event._id,
@@ -31,9 +38,7 @@ export async function joinEvent(
     ipHash: input.ipHash,
     createdAt: new Date(),
   };
-  const { guestSessions } = await collections();
   await guestSessions.insertOne(session);
-  await incrementEventCounter(event._id, "guests");
   return session;
 }
 

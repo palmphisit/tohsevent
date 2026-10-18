@@ -42,8 +42,23 @@ async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">
       </div>
 
       <Link
+        href={`/dashboard/events/${event.id}/plan`}
+        className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
+      >
+        <span className="min-w-0">
+          <span className="block font-medium">แพ็กเกจ {event.plan.name}</span>
+          <span className="block text-sm text-zinc-500">
+            แขก {event.usage.guests}/{event.plan.maxGuests} · รูป {event.usage.photos}/{event.plan.maxPhotos}
+            {event.expiresAt &&
+              ` · เปิดถึง ${new Date(event.expiresAt).toLocaleDateString("th-TH", { dateStyle: "medium", timeZone: "Asia/Bangkok" })}`}
+          </span>
+        </span>
+        <span className="shrink-0 text-sm font-medium">{event.plan.tier === "premium" ? "ดูรายละเอียด" : "อัปเกรด ›"}</span>
+      </Link>
+
+      <Link
         href={`/dashboard/events/${event.id}/photos`}
-        className="mt-6 flex items-center justify-between rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
+        className="mt-3 flex items-center justify-between rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
       >
         <span>
           <span className="block font-medium">จัดการรูปภาพ</span>

@@ -93,7 +93,13 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
       const { session } = await joinEvent(event.slug, { password, displayName: displayName || undefined });
       onJoined(session);
     } catch (err) {
-      setError(err instanceof ApiError && err.code === "invalid_password" ? "รหัสผ่านไม่ถูกต้อง" : "เกิดข้อผิดพลาด ลองอีกครั้ง");
+      setError(
+        err instanceof ApiError && err.code === "invalid_password"
+          ? "รหัสผ่านไม่ถูกต้อง"
+          : err instanceof ApiError && err.code === "event_full"
+            ? "งานนี้มีแขกครบจำนวนแล้ว"
+            : "เกิดข้อผิดพลาด ลองอีกครั้ง",
+      );
     } finally {
       setPending(false);
     }

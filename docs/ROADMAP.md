@@ -176,6 +176,30 @@ Index หลัก: `photos { eventId: 1, source: 1, status: 1, createdAt: -1 }`
 - **Download ทั้งอัลบั้มเป็น ZIP** (สร้างผ่าน Cloud Run Job แล้วส่งลิงก์)
 - **แจ้งเตือนแขกเมื่อรูป Official พร้อม** — ให้แขกกรอก Email หรือเพิ่มเพื่อน LINE OA แบบ opt-in (ดูหมายเหตุเรื่อง Push ใน Phase 5)
 
+### การตัดสินใจและลำดับงาน (18 ต.ค. 2026)
+
+- ผู้ให้บริการชำระเงิน: **Stripe Checkout** (บัตร + PromptPay, สกุล THB) และใช้ Stripe Billing ต่อสำหรับ Pro Subscription ใน Phase 3
+- แพ็กเกจต่องาน (ตัวเลขอยู่ใน `src/server/plans.ts` ไฟล์เดียว ปรับได้ภายหลัง):
+
+| | Free | Standard | Premium |
+|---|---|---|---|
+| ราคา | 0 ฿ | 590 ฿ | 1,490 ฿ |
+| แขกสูงสุด | 50 | 300 | 1,000 |
+| รูปทั้งงาน | 300 | 5,000 | 20,000 |
+| เก็บอัลบั้ม (นับจากวันงาน) | 7 วัน | 60 วัน | 180 วัน |
+| ลายน้ำแพลตฟอร์ม | มี | ไม่มี | ไม่มี |
+| Custom Branding + แบนเนอร์ผู้สนับสนุน | – | – | ✓ |
+
+- อัปเกรดจาก Standard เป็น Premium จ่ายเฉพาะส่วนต่าง
+- อัลบั้มที่หมดอายุ: แขกเข้าไม่ได้ทันที และลบไฟล์จริงหลังหมดอายุ 7 วัน (ช่วงผ่อนผันให้เจ้าภาพอัปเกรดเพื่อต่ออายุ)
+
+ลำดับงาน:
+1. **2a — แพ็กเกจ + ชำระเงิน**: บังคับใช้ limit, หน้าอัปเกรด, Stripe Checkout + webhook, ลบอัลบั้มหมดอายุ
+2. **2b — Freemium**: ลายน้ำบนงาน Free, ดาวน์โหลดความละเอียดสูงแบบเสียเงิน
+3. **2c — Custom Branding** + แบนเนอร์ผู้สนับสนุน (Premium)
+4. **2d — PDPA**: Privacy Policy, consent ตอนอัปโหลด, Request to Delete, audit log
+5. **2e — ที่เหลือ**: Auto Moderation, ZIP download, แจ้งเตือนแขก, Private Access ผ่าน Worker
+
 ## Phase 3 — Photographer Suite
 
 - **Desktop App (macOS/Windows)** — แนะนำ **Tauri** (เบา, ไฟล์เล็ก) หรือ Electron (ถ้าอยากใช้ Node ecosystem ทั้งหมด)

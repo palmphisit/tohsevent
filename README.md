@@ -48,7 +48,9 @@ pnpm dev
 | POST | `/api/v1/events/:slug/uploads` | ขอ presigned upload URL (สูงสุด 10 ไฟล์ต่อครั้ง) |
 | POST | `/api/v1/events/:slug/photos/:photoId/complete` | ยืนยันว่าอัปโหลดเสร็จแล้ว |
 | POST | `/api/v1/events/:slug/photos/:photoId/report` | แขกรายงาน / ขอลบรูป (`inappropriate`, `remove_me`, `other`) |
-| POST | `/api/internal/cleanup` | งานรายวันสำหรับ Cloud Scheduler (ต้องส่ง `Authorization: Bearer <CRON_SECRET>`) |
+| POST | `/api/v1/host/events/:id/checkout` | เริ่ม Stripe Checkout เพื่ออัปเกรดแพ็กเกจ (`{ tier }`) |
+| POST | `/api/stripe/webhook` | Stripe webhook (`checkout.session.*`) |
+| POST | `/api/internal/cleanup` | งานรายวันสำหรับ Cloud Scheduler: ล้างอัปโหลดค้าง, ปิดอัลบั้มหมดอายุ, ลบไฟล์อัลบั้มที่หมดอายุเกิน 7 วัน (`Authorization: Bearer <CRON_SECRET>`) |
 | * | `/api/auth/*` | บัญชีเจ้าภาพ (Better Auth): `sign-up/email`, `sign-in/email`, `sign-out`, `get-session` |
 | GET / POST | `/api/v1/host/events` | รายการงานของฉัน / สร้างงาน (ต้อง login) |
 | GET / PATCH | `/api/v1/host/events/:id` | ดู / แก้ไขงาน (เฉพาะเจ้าของ) |

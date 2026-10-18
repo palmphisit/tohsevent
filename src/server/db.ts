@@ -1,6 +1,6 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
 import { env } from "./env";
-import type { EventDoc, GuestSessionDoc, PhotoDoc, ReportDoc } from "./models";
+import type { EventDoc, GuestSessionDoc, PaymentDoc, PhotoDoc, ReportDoc } from "./models";
 
 // Cloud Run instances are long-lived containers, so one pooled client per instance
 // is reused across requests. Stored on globalThis to survive dev hot reloads.
@@ -30,6 +30,7 @@ export async function collections(): Promise<{
   guestSessions: Collection<GuestSessionDoc>;
   photos: Collection<PhotoDoc>;
   reports: Collection<ReportDoc>;
+  payments: Collection<PaymentDoc>;
 }> {
   const db = await getDb();
   return {
@@ -37,15 +38,20 @@ export async function collections(): Promise<{
     guestSessions: db.collection<GuestSessionDoc>("guestSessions"),
     photos: db.collection<PhotoDoc>("photos"),
     reports: db.collection<ReportDoc>("reports"),
+    payments: db.collection<PaymentDoc>("payments"),
   };
 }
 
 export async function ensureIndexes(): Promise<void> {
   const db = database();
-  const { events, guestSessions, photos, reports } = await collections();
+  const { events, guestSessions, photos, reports, payments } = await collections();
   await Promise.all([
     events.createIndex({ slug: 1 }, { unique: true }),
     events.createIndex({ ownerId: 1, createdAt: -1 }),
+    // Daily job: expire and purge albums.
+    events.createIndex({ status: 1, expiresAt: 1 }),
+    payments.createIndex({ stripeSessionId: 1 }, { unique: true, partialFilterExpression: { stripeSessionId: { $type: "string" } } }),
+    payments.createIndex({ eventId: 1, createdAt: -1 }),
     guestSessions.createIndex({ eventId: 1, createdAt: -1 }),
     // Gallery listing: newest first per event + source, cursor on _id.
     photos.createIndex({ eventId: 1, source: 1, status: 1, _id: -1 }),

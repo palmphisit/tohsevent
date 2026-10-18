@@ -148,6 +148,36 @@ docker run --rm -i -e BASE_URL=https://<SERVICE_URL> -e SLUG=<test-event-slug> g
 error 0%, API p95 79 ms ค่าบน Cloud Run + Atlas + R2 จะต่างออกไป ควรรันซ้ำก่อนงานจริง โดยเฉพาะถ้า Atlas เป็น tier ฟรี/Flex
 ซึ่งจำกัดจำนวน connection และ ops/s
 
+## 8. Stripe (รับชำระเงินค่าแพ็กเกจ)
+
+ถ้าไม่ได้ตั้ง `STRIPE_SECRET_KEY` หน้าแพ็กเกจจะยังแสดงได้ แต่ปุ่มอัปเกรดจะถูกปิดไว้
+
+1. Stripe Dashboard → Settings → Payment methods: เปิด **Cards** และ **PromptPay** (บัญชีธุรกิจไทย, สกุล THB)
+2. Developers → Webhooks → Add endpoint
+   - URL: `https://<SERVICE_URL>/api/stripe/webhook`
+   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+     `checkout.session.async_payment_failed`, `checkout.session.expired`
+   - คัดลอก Signing secret (`whsec_...`)
+3. เก็บ key ใน Secret Manager (เริ่มจาก test mode `sk_test_...` ก่อน) แล้วผูกเข้ากับ service:
+
+```bash
+printf '%s' 'sk_test_...' | gcloud secrets create stripe-secret-key --data-file=-
+printf '%s' 'whsec_...' | gcloud secrets create stripe-webhook-secret --data-file=-
+for s in stripe-secret-key stripe-webhook-secret; do
+  gcloud secrets add-iam-policy-binding "$s" --member="serviceAccount:tohsevent-run@tohs-event.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor" --condition=None
+done
+gcloud run services update tohsevent --region asia-southeast1 \
+  --update-secrets "STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest"
+```
+
+ทดสอบในเครื่อง: ใส่ `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` ใน `.env.local` แล้วใช้ Stripe CLI
+`stripe listen --forward-to localhost:3000/api/stripe/webhook` (CLI จะแสดง `whsec_...` สำหรับใช้ในเครื่อง)
+บัตรทดสอบ: `4242 4242 4242 4242`, วันหมดอายุในอนาคต, CVC อะไรก็ได้
+
+webhook เป็นตัวยืนยันหลัก ส่วนหน้า `/dashboard/events/:id/plan?checkout=success` จะดึงสถานะจาก Stripe ซ้ำอีกรอบ
+เผื่อ webhook มาช้า การอัปเกรดแต่ละครั้งถูก apply เพียงครั้งเดียวแม้ webhook จะถูกส่งซ้ำ
+
 ## Checklist ก่อนเปิดใช้งาน
 
 - [ ] `APP_ORIGIN` ตรงกับโดเมนจริง และอยู่ใน CORS ของ R2
@@ -155,4 +185,5 @@ error 0%, API p95 79 ms ค่าบน Cloud Run + Atlas + R2 จะต่า�
 - [ ] รัน `scripts/setup.ts` กับ production แล้ว (index ครบ)
 - [ ] ตั้ง Cloud Scheduler สำหรับ cleanup และทดสอบรันแล้ว
 - [ ] รัน load test กับ environment จริงแล้ว และตั้ง `--min-instances 1` ช่วงวันงาน
+- [ ] Stripe: เปลี่ยนเป็น live key, ลงทะเบียน webhook ของ live mode และทดลองจ่ายจริงด้วยยอดเล็ก ๆ 1 ครั้ง
 - [ ] ทดสอบอัปโหลดจากมือถือจริง (iOS Safari + Android Chrome) ผ่าน 4G

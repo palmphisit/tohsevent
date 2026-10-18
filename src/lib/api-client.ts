@@ -137,3 +137,11 @@ export async function completeOfficialUpload(eventId: string, photoId: string): 
   });
   return photo;
 }
+
+export async function startUpgradeCheckout(eventId: string, tier: "standard" | "premium"): Promise<string> {
+  const { url } = await request<{ url: string }>(`${hostBase(eventId)}/checkout`, {
+    method: "POST",
+    body: JSON.stringify({ tier }),
+  });
+  return url;
+}

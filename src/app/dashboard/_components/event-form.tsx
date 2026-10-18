@@ -11,6 +11,7 @@ const ERRORS: Record<string, string> = {
   slug_taken: "ลิงก์นี้ถูกใช้แล้ว ลองชื่ออื่น",
   password_required: "กรุณาตั้งรหัสผ่านสำหรับงานที่ต้องใช้รหัสผ่าน",
   invalid_body: "ข้อมูลไม่ถูกต้อง ตรวจสอบอีกครั้ง",
+  event_expired: "อัลบั้มนี้หมดอายุแล้ว อัปเกรดแพ็กเกจเพื่อเปิดอีกครั้ง",
 };
 
 function today(): string {

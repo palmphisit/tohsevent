@@ -2,6 +2,7 @@ import { ObjectId, type Filter } from "mongodb";
 import { collections } from "../db";
 import { HttpError } from "../http";
 import {
+  planOf,
   type EventDoc,
   type PhotoDoc,
   type PhotoSource,
@@ -32,6 +33,30 @@ function photoKey(eventId: ObjectId, photoId: ObjectId, variant: PhotoVariant, c
 }
 
 type Uploader = PhotoDoc["uploader"];
+
+/**
+ * Takes `count` photo slots from the event's plan allowance (all stored photos, guest and
+ * official). Atomic, so parallel uploads cannot overshoot `maxPhotos`.
+ */
+async function reservePhotoQuota(event: EventDoc, count: number): Promise<void> {
+  const { events, photos } = await collections();
+  if (event.usage === undefined) {
+    // Events created before usage tracking: backfill the counter once.
+    const used = await photos.countDocuments({ eventId: event._id, status: { $in: ["pending", "ready", "hidden"] } });
+    await events.updateOne({ _id: event._id, usage: { $exists: false } }, { $set: { usage: { photos: used } } });
+  }
+  const reserved = await events.findOneAndUpdate(
+    { _id: event._id, "usage.photos": { $lte: planOf(event).maxPhotos - count } },
+    { $inc: { "usage.photos": count } },
+  );
+  if (!reserved) throw new HttpError(403, "photo_limit_reached", "This album has reached its photo limit");
+}
+
+/** Gives photo slots back (deleted photos, abandoned uploads). */
+export async function releasePhotoQuota(eventId: ObjectId, count: number): Promise<void> {
+  const { events } = await collections();
+  await events.updateOne({ _id: eventId, "usage.photos": { $gte: count } }, { $inc: { "usage.photos": -count } });
+}
 
 /** Inserts `pending` photo docs and returns presigned PUT URLs for every variant. */
 async function createPendingPhotos(
@@ -91,6 +116,7 @@ export async function createGuestUploads(
   if (!event.settings.guestUpload) throw new HttpError(403, "uploads_disabled", "Uploads are closed for this event");
 
   const { guestSessions } = await collections();
+  await reservePhotoQuota(event, files.length);
 
   // Atomic quota reservation: only succeeds if the guest still has room for all files.
   const session = await guestSessions.findOneAndUpdate(
@@ -103,18 +129,20 @@ export async function createGuestUploads(
     { returnDocument: "after" },
   );
   if (!session) {
+    await releasePhotoQuota(event._id, files.length);
     throw new HttpError(429, "quota_exceeded", `Each guest can upload up to ${event.settings.maxPhotosPerGuest} photos`);
   }
 
   return createPendingPhotos(event, "guest", { type: "guest", id: session._id, displayName: session.displayName }, files);
 }
 
-/** Official photos uploaded by the host (no quota; works even when guest uploads are closed). */
-export function createOfficialUploads(
+/** Official photos uploaded by the host (no per-guest quota; works even when guest uploads are closed). */
+export async function createOfficialUploads(
   event: EventDoc,
   host: { id: ObjectId; name: string },
   files: UploadRequestFile[],
 ): Promise<PresignedUpload[]> {
+  await reservePhotoQuota(event, files.length);
   return createPendingPhotos(event, "official", { type: "user", id: host.id, displayName: host.name }, files);
 }
 
