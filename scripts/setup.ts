@@ -5,8 +5,15 @@
  *   - Public-read bucket policy (local RustFS only; R2 uses a custom domain instead)
  *   - Demo events when run with --seed (never in production)
  *
+ * Flags:
+ *   --seed          insert demo events (refused when NODE_ENV=production)
+ *   --skip-storage  skip bucket/CORS setup, e.g. when CORS is managed in the
+ *                   Cloudflare dashboard and the R2 token is object-scoped only
+ *
  * Local:      pnpm setup:dev
- * Production: pnpm tsx --env-file=.env.production scripts/setup.ts
+ * Cloud DB:   MONGODB_URI="$(gcloud secrets versions access latest --secret=mongodb-uri)" \
+ *               pnpm tsx --env-file=.env.example scripts/setup.ts --skip-storage --seed
+ *             (--env-file never overrides variables already set in the shell)
  */
 import {
   CreateBucketCommand,
@@ -22,6 +29,7 @@ import { hashPassword } from "../src/server/password";
 import { s3 } from "../src/server/storage";
 
 const seed = process.argv.includes("--seed");
+const skipStorage = process.argv.includes("--skip-storage");
 
 async function setupBucket() {
   const { R2_BUCKET: Bucket, R2_ENDPOINT, APP_ORIGIN } = env();
@@ -101,7 +109,7 @@ async function seedDemoEvents() {
 async function main() {
   await ensureIndexes();
   console.log("MongoDB indexes ensured");
-  await setupBucket();
+  if (!skipStorage) await setupBucket();
   if (seed) await seedDemoEvents();
 }
 
