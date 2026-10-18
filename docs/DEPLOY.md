@@ -67,6 +67,26 @@ MONGODB_URI="$(gcloud secrets versions access latest --secret=mongodb-uri)" pnpm
 
 ## 5. Deploy
 
+### อัตโนมัติผ่าน GitHub Actions (ปกติใช้ทางนี้)
+
+ทุกครั้งที่ push เข้า `main` workflow [`.github/workflows/ci-deploy.yml`](../.github/workflows/ci-deploy.yml) จะ
+lint → typecheck → build → build image → push ไป Artifact Registry (`tohsevent/web:<commit sha>`) → `gcloud run deploy`
+→ เช็ก `/api/healthz` ส่วน Pull Request จะรันเฉพาะ CI ไม่ deploy
+
+ยืนยันตัวตนกับ GCP ด้วย Workload Identity Federation (org policy ห้ามสร้าง service account key) ตั้งค่าครั้งเดียวด้วย:
+
+```bash
+bash scripts/gcp/setup-github-deploy.sh
+```
+
+สคริปต์สร้าง Artifact Registry repo, service account `github-deployer` (push image + deploy revision เท่านั้น)
+และ WIF provider ที่รับ token จาก `palmphisit/tohsevent` branch `main` เท่านั้น
+
+workflow เปลี่ยนแค่ image env vars, secrets และค่า scaling เดิมของ service จะคงไว้
+ถ้าจะเปลี่ยนค่าเหล่านั้นให้ใช้ `gcloud run services update` (ดูด้านล่าง)
+
+### ด้วยมือ (ครั้งแรก หรือเมื่อต้องเปลี่ยน env/secrets)
+
 ใช้ `Dockerfile` ใน repo ได้เลย โดย Cloud Build จะ build ให้
 
 ```bash

@@ -1,0 +1,89 @@
+name: CI / Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: tohs-event
+  REGION: asia-southeast1
+  SERVICE: tohsevent
+  IMAGE: asia-southeast1-docker.pkg.dev/tohs-event/tohsevent/web
+  # Keyless auth (org policy forbids service account keys). Created by scripts/gcp/setup-github-deploy.sh
+  WORKLOAD_IDENTITY_PROVIDER: projects/997706797091/locations/global/workloadIdentityPools/github/providers/tohsevent-repo
+  DEPLOY_SERVICE_ACCOUNT: github-deployer@tohs-event.iam.gserviceaccount.com
+
+jobs:
+  ci:
+    name: Lint, typecheck, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+
+  deploy:
+    name: Deploy to Cloud Run
+    needs: ci
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    # One deploy at a time; a newer push waits instead of cancelling a rollout halfway.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write # needed to mint the OIDC token for Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Only the image changes; env vars, secrets, service account and scaling settings
+      # are kept from the current revision (see docs/DEPLOY.md to change them).
+      - name: Deploy
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$IMAGE:${{ github.sha }}" \
+            --quiet
+
+      - name: Smoke test
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')
+          for i in 1 2 3 4 5; do
+            if curl -fsS "$URL/api/healthz"; then echo; exit 0; fi
+            sleep 5
+          done
+          echo "Health check failed for $URL" >&2
+          exit 1
