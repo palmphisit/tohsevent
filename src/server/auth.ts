@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { nextCookies } from "better-auth/next-js";
+import { bearer } from "better-auth/plugins/bearer";
 import { ObjectId } from "mongodb";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -23,7 +24,8 @@ function createAuth() {
       updateAge: 60 * 60 * 24,
       cookieCache: { enabled: true, maxAge: 5 * 60 },
     },
-    plugins: [nextCookies()],
+    // bearer: the desktop app sends `Authorization: Bearer <session token>` instead of cookies.
+    plugins: [nextCookies(), bearer()],
   });
 }
 
@@ -55,9 +57,9 @@ export async function requireHost(req: Request): Promise<Host> {
   return host;
 }
 
-/** For server components: the signed-in host, or a redirect to /login. */
-export async function requireHostPage(): Promise<Host> {
+/** For server components: the signed-in host, or a redirect to /login (then back to `nextPath`). */
+export async function requireHostPage(nextPath?: string): Promise<Host> {
   const host = await hostFromHeaders(await headers());
-  if (!host) redirect("/login");
+  if (!host) redirect(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
   return host;
 }

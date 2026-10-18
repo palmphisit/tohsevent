@@ -205,6 +205,32 @@ gcloud secrets add-iam-policy-binding resend-api-key --member="serviceAccount:to
 gcloud run services update tohsevent --region asia-southeast1 --update-secrets RESEND_API_KEY=resend-api-key:latest --update-env-vars "EMAIL_FROM=Tohs Event <noreply@tohsevent.com>"
 ```
 
+### ไฟล์ต้นฉบับของช่างภาพ (Phase 3)
+
+ไฟล์ต้นฉบับเก็บใน **bucket แยกที่ไม่เปิด public** และดาวน์โหลดได้เฉพาะผ่านลิงก์ชั่วคราว ถ้าไม่ได้ตั้งค่า ฟีเจอร์นี้จะซ่อนอยู่
+
+1. Cloudflare → R2 → **Create bucket** ชื่อ `tohsevent-originals` (ห้ามผูก custom domain และห้ามเปิด public access)
+2. R2 → Manage API tokens → แก้ token เดิมของแอปให้มีสิทธิ์ **Object Read & Write** กับ bucket `tohsevent-originals` ด้วย
+3. ที่ bucket `tohsevent-originals` → Settings → CORS Policy ให้เบราว์เซอร์อัปโหลดชิ้นไฟล์และอ่าน ETag ได้:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://tohsevent.com", "https://tohsevent-997706797091.asia-southeast1.run.app", "http://localhost:3000"],
+    "AllowedMethods": ["PUT", "GET", "HEAD"],
+    "AllowedHeaders": ["content-type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+4. เปิดใช้งาน:
+
+```bash
+gcloud run services update tohsevent --region asia-southeast1 --update-env-vars R2_ORIGINALS_BUCKET=tohsevent-originals
+```
+
 ### ดาวน์โหลด ZIP
 
 ไฟล์ ZIP ถูกสตรีมจาก Cloud Run ไฟล์ละ 300 รูป ควรขยาย request timeout เพื่อให้ไฟล์ใหญ่ดาวน์โหลดจบ:

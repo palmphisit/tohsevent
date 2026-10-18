@@ -4,8 +4,9 @@ import { planOf } from "@/server/models";
 import { downloadableCounts, ZIP_PART_SIZE } from "@/server/services/archive";
 import { emailEnabled } from "@/server/email";
 import { countOpenReports } from "@/server/services/moderation";
+import { originalsAvailable } from "@/server/services/originals";
 import { pendingNotificationCount } from "@/server/services/notifications";
-import { loadHostEventPage } from "../load-event";
+import { loadEventPageForMember } from "../load-event";
 import { NotifyGuestsButton } from "./notify-guests-button";
 import { PhotoModeration } from "./photo-moderation";
 
@@ -21,11 +22,12 @@ export default function EventPhotosPage({ params }: PageProps<"/dashboard/events
 
 async function PhotosLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/photos">, "params">) {
   const { id } = await params;
-  const event = await loadHostEventPage(id);
+  const { event, role } = await loadEventPageForMember(id);
+  const owner = role === "owner";
   const [openReports, counts, waitingForEmail] = await Promise.all([
     countOpenReports(event),
     downloadableCounts(event),
-    emailEnabled() ? pendingNotificationCount(event) : Promise.resolve(null),
+    owner && emailEnabled() ? pendingNotificationCount(event) : Promise.resolve(null),
   ]);
 
   return (
@@ -36,7 +38,13 @@ async function PhotosLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/p
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">จัดการรูปภาพ</h1>
       <DownloadPanel eventId={id} counts={counts} />
       {waitingForEmail !== null && <NotifyGuestsButton eventId={id} pending={waitingForEmail} />}
-      <PhotoModeration eventId={id} openReports={openReports} watermark={planOf(event).watermark} />
+      <PhotoModeration
+        eventId={id}
+        openReports={owner ? openReports : 0}
+        watermark={planOf(event).watermark}
+        canModerate={owner}
+        originals={originalsAvailable(event)}
+      />
     </>
   );
 }

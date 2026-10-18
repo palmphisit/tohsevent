@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, putToStorage, type PublicPhoto } from "@/lib/api-client";
 import { prepareImage, type PreparedImage } from "@/lib/image";
-import { listPending, removePending, savePending } from "@/lib/upload-store";
+import { listPending, removePending, savePending, setPendingPhotoId } from "@/lib/upload-store";
 import type { PresignedUpload } from "@/server/services/photos";
 
 const CONCURRENCY = 2;
 // Presigned URLs live 10 minutes; re-reserve a little before that on retry.
 const RESERVATION_TTL_MS = 8 * 60 * 1000;
 
-type Status = "queued" | "processing" | "uploading" | "done" | "error";
+type Status = "queued" | "processing" | "uploading" | "original" | "done" | "error";
 
 interface QueueItem {
   id: string;
@@ -20,6 +20,10 @@ interface QueueItem {
   previewUrl?: string;
   image?: PreparedImage;
   reservation?: { data: PresignedUpload; at: number };
+  /** Set once the display/thumb copies are published; a retry then only redoes the original. */
+  photoId?: string;
+  /** Original-file upload progress (0–1). */
+  progress?: number;
 }
 
 function errorMessage(error: unknown): string {
@@ -29,6 +33,8 @@ function errorMessage(error: unknown): string {
     if (error.code === "photo_limit_reached") return "อัลบั้มนี้เต็มแล้ว";
     if (error.code === "event_full") return "งานนี้มีแขกครบจำนวนแล้ว";
     if (error.code === "consent_declined") return "ต้องยอมรับนโยบายก่อนอัปโหลด";
+    if (error.code === "unsupported_original") return "ชนิดไฟล์ต้นฉบับไม่รองรับ";
+    if (error.code === "part_upload_failed") return "อัปต้นฉบับไม่สำเร็จ";
   }
   return "อัปโหลดไม่สำเร็จ";
 }
@@ -54,13 +60,35 @@ export interface UploadTarget {
   watermark?: boolean;
   reserve: (image: PreparedImage) => Promise<PresignedUpload>;
   complete: (photoId: string) => Promise<PublicPhoto>;
+  /** Upload the untouched file as the photo's original (photographers, Premium events). */
+  uploadOriginal?: (photoId: string, file: Blob, onProgress: (fraction: number) => void) => Promise<void>;
 }
 
 /**
  * Runs the 3-step upload for one item, resuming from whatever a previous attempt
  * already finished (resized image, unexpired reservation).
  */
-async function uploadItem(target: UploadTarget, item: QueueItem, update: (patch: Partial<QueueItem>) => void) {
+async function uploadItem(
+  target: UploadTarget,
+  item: QueueItem,
+  update: (patch: Partial<QueueItem>) => void,
+  onPhotoReady: (photo: PublicPhoto) => void,
+) {
+  let photoId = item.photoId;
+  if (!photoId) {
+    const photo = await uploadCopies(target, item, update);
+    photoId = photo.id;
+    update({ photoId, image: undefined, reservation: undefined });
+    onPhotoReady(photo);
+  }
+  if (target.uploadOriginal) {
+    update({ status: "original", progress: 0, error: undefined });
+    await target.uploadOriginal(photoId, item.file, (progress) => update({ progress }));
+  }
+}
+
+/** Display + thumb (+ watermarked) copies: resize, reserve, PUT, complete. */
+async function uploadCopies(target: UploadTarget, item: QueueItem, update: (patch: Partial<QueueItem>) => void) {
   let { image, reservation } = item;
   if (!image) {
     update({ status: "processing", error: undefined });
@@ -109,7 +137,7 @@ export function Uploader({
     callbacks.current = { target, onUploaded };
   });
 
-  const inFlight = items.some((i) => i.status === "queued" || i.status === "processing" || i.status === "uploading");
+  const inFlight = items.some((i) => ["queued", "processing", "uploading", "original"].includes(i.status));
   const doneCount = items.filter((i) => i.status === "done").length;
 
   // iOS Safari has no Background Sync: closing the tab stops uploads, so warn the guest.
@@ -136,10 +164,17 @@ export function Uploader({
     try {
       const { target } = callbacks.current;
       await target.prepare?.();
-      const photo = await uploadItem(target, itemsRef.current.get(id)!, (patch) => update(id, patch));
+      await uploadItem(
+        target,
+        itemsRef.current.get(id)!,
+        (patch) => update(id, patch),
+        (photo) => {
+          void setPendingPhotoId(id, photo.id);
+          callbacks.current.onUploaded(photo);
+        },
+      );
       update(id, { status: "done", image: undefined, reservation: undefined });
       void removePending(id);
-      callbacks.current.onUploaded(photo);
     } catch (error) {
       console.error("upload failed", error);
       update(id, { status: "error", error: errorMessage(error) });
@@ -163,11 +198,11 @@ export function Uploader({
     pump();
   }
 
-  function addItems(entries: { id: string; file: Blob }[]) {
+  function addItems(entries: { id: string; file: Blob; photoId?: string }[]) {
     const ids = entries
       .filter((entry) => !itemsRef.current.has(entry.id))
-      .map(({ id, file }) => {
-        itemsRef.current.set(id, { id, file, status: "queued" });
+      .map(({ id, file, photoId }) => {
+        itemsRef.current.set(id, { id, file, photoId, status: "queued" });
         return id;
       });
     setItems(Array.from(itemsRef.current.values()));
@@ -272,6 +307,8 @@ export function Uploader({
                       "รอคิว"
                     ) : item.status === "processing" ? (
                       "กำลังย่อรูป"
+                    ) : item.status === "original" ? (
+                      `ต้นฉบับ ${Math.round((item.progress ?? 0) * 100)}%`
                     ) : (
                       "กำลังอัปโหลด"
                     )}

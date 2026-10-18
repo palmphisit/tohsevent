@@ -30,8 +30,31 @@ export interface EventDoc {
   branding?: BrandingDoc;
   /** When the host was emailed that the album expires soon. */
   expiryReminderSentAt?: Date | null;
+  /** People invited to work on the event besides the owner (photographers). */
+  members?: EventMember[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type MemberRole = "photographer";
+
+export interface EventMember {
+  userId: ObjectId;
+  role: MemberRole;
+  addedAt: Date;
+}
+
+export interface InviteDoc {
+  _id: ObjectId;
+  eventId: ObjectId;
+  role: MemberRole;
+  /** sha256 of the link token; the token itself is only shown once to the owner. */
+  tokenHash: string;
+  createdBy: ObjectId;
+  createdAt: Date;
+  expiresAt: Date;
+  acceptedBy: ObjectId | null;
+  acceptedAt: Date | null;
 }
 
 export interface SponsorDoc {
@@ -116,6 +139,17 @@ export interface PhotoDoc {
   createdAt: Date;
   completedAt: Date | null;
   deletedAt?: Date;
+  /** Full-resolution file in the private originals bucket (photographer uploads). */
+  original?: {
+    key: string;
+    contentType: string;
+    bytes: number;
+    filename: string;
+    partSize: number;
+    uploadId: string | null;
+    status: "uploading" | "ready";
+    completedAt: Date | null;
+  };
 }
 
 export const REPORT_REASONS = ["inappropriate", "remove_me", "other"] as const;

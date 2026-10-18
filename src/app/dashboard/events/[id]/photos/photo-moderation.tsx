@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lightbox } from "@/components/lightbox";
 import { Uploader, type UploadTarget } from "@/components/uploader";
+import { uploadOriginal } from "@/lib/original-upload";
 import {
   completeOfficialUpload,
   deleteHostPhoto,
@@ -37,18 +38,25 @@ export function PhotoModeration({
   eventId,
   openReports,
   watermark,
+  canModerate,
+  originals,
 }: {
   eventId: string;
   openReports: number;
   watermark: boolean;
+  /** Owners moderate everything; photographers only upload and manage their own official photos. */
+  canModerate: boolean;
+  /** The event's plan allows full-resolution originals. */
+  originals: boolean;
 }) {
-  const [view, setView] = useState<HostPhotoView>(openReports > 0 ? "reported" : "guest");
+  const [view, setView] = useState<HostPhotoView>(!canModerate ? "official" : openReports > 0 ? "reported" : "guest");
+  const tabs = canModerate ? TABS : TABS.filter((t) => t.view === "official");
   const [reportCount, setReportCount] = useState(openReports);
 
   return (
     <div className="mt-6">
       <div role="tablist" className="flex gap-1 rounded-xl bg-zinc-100 p-1">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.view}
             role="tab"
@@ -69,6 +77,8 @@ export function PhotoModeration({
         eventId={eventId}
         view={view}
         watermark={watermark}
+        canModerate={canModerate}
+        originals={originals}
         onReportsResolved={(n) => setReportCount((c) => Math.max(0, c - n))}
       />
     </div>
@@ -79,11 +89,15 @@ function ModerationGrid({
   eventId,
   view,
   watermark,
+  canModerate,
+  originals,
   onReportsResolved,
 }: {
   eventId: string;
   view: HostPhotoView;
   watermark: boolean;
+  canModerate: boolean;
+  originals: boolean;
   onReportsResolved: (photos: number) => void;
 }) {
   const [photos, setPhotos] = useState<HostPhoto[]>([]);
@@ -91,6 +105,7 @@ function ModerationGrid({
   const [state, setState] = useState<"loading" | "idle" | "error">("loading");
   const [busy, setBusy] = useState<string | null>(null);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [withOriginals, setWithOriginals] = useState(originals);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,7 +165,14 @@ function ModerationGrid({
   const onUploaded = useCallback(
     (photo: PublicPhoto) =>
       setPhotos((prev) => [
-        { ...photo, status: photo.pendingReview ? "hidden" : "ready", openReports: 0, reports: [], autoFlagged: null },
+        {
+          ...photo,
+          status: photo.pendingReview ? "hidden" : "ready",
+          openReports: 0,
+          reports: [],
+          autoFlagged: null,
+          original: null,
+        },
         ...prev.filter((p) => p.id !== photo.id),
       ]),
     [],
@@ -160,8 +182,11 @@ function ModerationGrid({
       watermark,
       reserve: (image) => reserveOfficialUpload(eventId, image),
       complete: (photoId) => completeOfficialUpload(eventId, photoId),
+      ...(withOriginals
+        ? { uploadOriginal: (photoId: string, file: Blob, onProgress: (f: number) => void) => uploadOriginal(eventId, photoId, file, onProgress) }
+        : {}),
     }),
-    [eventId, watermark],
+    [eventId, watermark, withOriginals],
   );
 
   return (
@@ -174,6 +199,17 @@ function ModerationGrid({
             persistKey={`official:${eventId}`}
             label="อัปโหลดรูป Official"
           />
+          {originals && (
+            <label className="mt-2 flex items-center gap-2 text-sm text-zinc-700">
+              <input
+                type="checkbox"
+                checked={withOriginals}
+                onChange={(e) => setWithOriginals(e.target.checked)}
+                className="accent-zinc-900"
+              />
+              อัปโหลดไฟล์ต้นฉบับด้วย (เก็บแบบส่วนตัว ไม่แสดงให้แขกเห็น · สูงสุด 200 MB ต่อไฟล์)
+            </label>
+          )}
           <p className="mt-2 text-xs text-zinc-500">
             รูปจะถูกย่อเป็นความละเอียด 2560px ก่อนอัปโหลด การอัปโหลดไฟล์ต้นฉบับความละเอียดสูงจะมาพร้อมแอปสำหรับช่างภาพ
             {watermark && " · แพ็กเกจ Free: แขกจะเห็นรูปพร้อมลายน้ำ Tohs Event จนกว่าจะอัปเกรด"}
@@ -215,7 +251,7 @@ function ModerationGrid({
               </div>
             </button>
             <div className="flex gap-1 p-1.5 text-xs">
-              {photo.status === "ready" || photo.autoFlagged ? (
+              {!canModerate ? null : photo.status === "ready" || photo.autoFlagged ? (
                 <>
                   {photo.autoFlagged && (
                     <ActionButton disabled={busy === photo.id} onClick={() => act(photo, "show")}>
@@ -241,6 +277,20 @@ function ModerationGrid({
               </ActionButton>
             </div>
             {photo.uploaderName && <p className="truncate px-2 pb-2 text-xs text-zinc-500">{photo.uploaderName}</p>}
+            {photo.original && (
+              <p className="px-2 pb-2 text-xs">
+                {photo.original.status === "ready" ? (
+                  <a
+                    href={`/api/v1/host/events/${eventId}/photos/${photo.id}/original`}
+                    className="text-emerald-700 underline"
+                  >
+                    ต้นฉบับ {(photo.original.bytes / 1024 / 1024).toFixed(1)} MB ↓
+                  </a>
+                ) : (
+                  <span className="text-amber-700">ต้นฉบับยังอัปไม่เสร็จ</span>
+                )}
+              </p>
+            )}
             {photo.reports.length > 0 && (
               <ul className="space-y-1 border-t border-zinc-100 px-2 py-2 text-xs">
                 {photo.reports.map((r, i) => (

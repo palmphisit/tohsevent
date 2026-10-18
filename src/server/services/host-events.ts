@@ -11,8 +11,18 @@ import { expiryFor, PLANS, type PlanTier } from "../plans";
 const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"; // no look-alikes (i/l/1, o/0)
 export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 
+/** What the signed-in user may do with an event. */
+export type EventRole = "owner" | "photographer";
+
+export function roleOf(event: EventDoc, userId: ObjectId): EventRole | null {
+  if (event.ownerId?.equals(userId)) return "owner";
+  return event.members?.find((m) => m.userId.equals(userId))?.role ?? null;
+}
+
 export interface HostEvent {
   id: string;
+  /** The requesting user's role on this event. */
+  role: EventRole;
   slug: string;
   title: string;
   date: string; // YYYY-MM-DD
@@ -39,10 +49,11 @@ export function guestEventUrl(slug: string): string {
   return `${env().APP_ORIGIN}/e/${slug}`;
 }
 
-export function toHostEvent(event: EventDoc): HostEvent {
+export function toHostEvent(event: EventDoc, role: EventRole = "owner"): HostEvent {
   const plan = planOf(event);
   return {
     id: event._id.toHexString(),
+    role,
     slug: event.slug,
     title: event.title,
     date: event.date.toISOString().slice(0, 10),
@@ -78,10 +89,24 @@ function isDuplicateKey(error: unknown): boolean {
   return error instanceof MongoServerError && error.code === 11000;
 }
 
-export async function listHostEvents(ownerId: ObjectId): Promise<HostEvent[]> {
+/** Events the user owns or was invited to. */
+export async function listHostEvents(userId: ObjectId): Promise<HostEvent[]> {
   const { events } = await collections();
-  const docs = await events.find({ ownerId }).sort({ date: -1, _id: -1 }).limit(200).toArray();
-  return docs.map(toHostEvent);
+  const docs = await events
+    .find({ $or: [{ ownerId: userId }, { "members.userId": userId }] })
+    .sort({ date: -1, _id: -1 })
+    .limit(200)
+    .toArray();
+  return docs.map((event) => toHostEvent(event, roleOf(event, userId) ?? "owner"));
+}
+
+/** The event if the user owns it or is a member, with their role; 404 otherwise. */
+export async function getEventForMember(userId: ObjectId, eventId: ObjectId): Promise<{ event: EventDoc; role: EventRole }> {
+  const { events } = await collections();
+  const event = await events.findOne({ _id: eventId, $or: [{ ownerId: userId }, { "members.userId": userId }] });
+  const role = event && roleOf(event, userId);
+  if (!event || !role) throw new HttpError(404, "event_not_found");
+  return { event, role };
 }
 
 export async function getHostEvent(ownerId: ObjectId, eventId: ObjectId): Promise<EventDoc> {
@@ -91,11 +116,21 @@ export async function getHostEvent(ownerId: ObjectId, eventId: ObjectId): Promis
   return event;
 }
 
-/** Route-handler helper: the signed-in host and their event `id`, or 401/404. */
+/** Route-handler helper for owner-only actions: the signed-in owner and their event, or 401/404. */
 export async function requireHostEvent(req: Request, id: string): Promise<{ host: Host; event: EventDoc }> {
   const host = await requireHost(req);
   const event = await getHostEvent(host.id, parseObjectId(id, "event_not_found"));
   return { host, event };
+}
+
+/** Route-handler helper for actions photographers may also do (uploads, viewing, downloads). */
+export async function requireEventMember(
+  req: Request,
+  id: string,
+): Promise<{ host: Host; event: EventDoc; role: EventRole }> {
+  const host = await requireHost(req);
+  const { event, role } = await getEventForMember(host.id, parseObjectId(id, "event_not_found"));
+  return { host, event, role };
 }
 
 export interface CreateEventInput {

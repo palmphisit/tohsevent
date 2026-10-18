@@ -32,8 +32,15 @@ const seed = process.argv.includes("--seed");
 const skipStorage = process.argv.includes("--skip-storage");
 
 async function setupBucket() {
-  const { R2_BUCKET: Bucket, R2_ENDPOINT, APP_ORIGIN } = env();
+  const { R2_BUCKET, R2_ORIGINALS_BUCKET, R2_ENDPOINT } = env();
   const isLocal = /localhost|127\.0\.0\.1/.test(R2_ENDPOINT);
+  await ensureBucket(R2_BUCKET, { publicRead: isLocal });
+  // Private bucket for originals: never public; CORS so browsers can PUT parts and read ETags.
+  if (R2_ORIGINALS_BUCKET) await ensureBucket(R2_ORIGINALS_BUCKET, { publicRead: false });
+}
+
+async function ensureBucket(Bucket: string, options: { publicRead: boolean }) {
+  const { APP_ORIGIN } = env();
 
   try {
     await s3().send(new HeadBucketCommand({ Bucket }));
@@ -60,7 +67,7 @@ async function setupBucket() {
   );
   console.log(`CORS set on ${Bucket} for ${APP_ORIGIN}`);
 
-  if (isLocal) {
+  if (options.publicRead) {
     await s3().send(
       new PutBucketPolicyCommand({
         Bucket,

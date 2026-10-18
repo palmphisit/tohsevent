@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { qrSvg } from "@/server/qr";
 import { toHostEvent } from "@/server/services/host-events";
-import { loadHostEventPage } from "../load-event";
+import { loadEventPageForMember } from "../load-event";
 import { PrintButton } from "./print-button";
 
 // Printable table-top poster. Hosts print it or "Save as PDF" from the browser print dialog.
@@ -16,7 +16,7 @@ export default function PosterPage({ params }: PageProps<"/dashboard/events/[id]
 
 async function Poster({ params }: Pick<PageProps<"/dashboard/events/[id]/poster">, "params">) {
   const { id } = await params;
-  const event = toHostEvent(await loadHostEventPage(id));
+  const event = toHostEvent((await loadEventPageForMember(id)).event);
   const svg = await qrSvg(event.guestUrl);
 
   return (

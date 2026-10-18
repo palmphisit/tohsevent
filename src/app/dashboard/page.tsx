@@ -46,6 +46,7 @@ async function EventList() {
               <p className="mt-0.5 text-sm text-zinc-500">
                 {new Date(event.date).toLocaleDateString("th-TH", { dateStyle: "medium", timeZone: "UTC" })} ·{" "}
                 {event.counters.photos} รูป · {event.counters.guests} แขก · {event.plan.name}
+                {event.role === "photographer" && " · คุณเป็นช่างภาพ"}
               </p>
             </div>
             <StatusBadge status={event.status} />

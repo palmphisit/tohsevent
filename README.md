@@ -55,10 +55,15 @@ pnpm dev
 | POST | `/api/v1/host/events/:id/branding/assets` | presigned upload สำหรับโลโก้ / รูปปก / โลโก้ผู้สนับสนุน |
 | GET | `/api/v1/host/events/:id/download?source=guest\|official&part=` | ZIP ของรูปที่แสดงอยู่ (ไฟล์ละ 300 รูป) |
 | POST | `/api/v1/host/events/:id/notify-guests` | ส่งอีเมลแจ้งแขกที่สมัครไว้ว่ารูปพร้อม |
+| GET / POST | `/api/v1/host/events/:id/members` | รายชื่อช่างภาพ + ลิงก์เชิญที่ยังไม่ใช้ / สร้างลิงก์เชิญ (เจ้าภาพ) |
+| DELETE | `/api/v1/host/events/:id/members/:userId`, `/invites/:inviteId` | นำช่างภาพออก / ยกเลิกลิงก์เชิญ |
+| POST | `/api/v1/invites/:token/accept` | ผู้ใช้ที่ login รับคำเชิญเป็นช่างภาพ |
+| POST / GET | `/api/v1/host/events/:id/photos/:photoId/original` | เริ่ม (หรืออัปต่อ) multipart ของไฟล์ต้นฉบับ / ดาวน์โหลดผ่านลิงก์ชั่วคราว |
+| POST | `.../original/parts`, `.../original/complete` | presigned URL ของแต่ละชิ้น / รวมชิ้นและตรวจขนาด |
 | POST | `/api/v1/host/events/:id/checkout` | เริ่ม Stripe Checkout เพื่ออัปเกรดแพ็กเกจ (`{ tier }`) |
 | POST | `/api/stripe/webhook` | Stripe webhook (`checkout.session.*`) |
 | POST | `/api/internal/cleanup` | งานรายวันสำหรับ Cloud Scheduler: ล้างอัปโหลดค้าง, ปิดอัลบั้มหมดอายุ, ลบไฟล์อัลบั้มที่หมดอายุเกิน 7 วัน (`Authorization: Bearer <CRON_SECRET>`) |
-| * | `/api/auth/*` | บัญชีเจ้าภาพ (Better Auth): `sign-up/email`, `sign-in/email`, `sign-out`, `get-session` |
+| * | `/api/auth/*` | บัญชีเจ้าภาพ (Better Auth): `sign-up/email`, `sign-in/email`, `sign-out`, `get-session` · แอป desktop ใช้ header `Authorization: Bearer <token>` (ได้จาก header `set-auth-token` ตอน sign-in) |
 | GET / POST | `/api/v1/host/events` | รายการงานของฉัน / สร้างงาน (ต้อง login) |
 | GET / PATCH | `/api/v1/host/events/:id` | ดู / แก้ไขงาน (เฉพาะเจ้าของ) |
 | GET | `/api/v1/host/events/:id/qr?format=png\|svg&size=` | ดาวน์โหลด QR Code ของหน้าแขก |

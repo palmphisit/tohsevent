@@ -19,6 +19,8 @@ const schema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_BUCKET: z.string().min(1),
   R2_PUBLIC_BASE_URL: z.url().transform((url) => url.replace(/\/+$/, "")),
+  /** Private bucket for full-resolution originals (no public access). Originals are disabled when unset. */
+  R2_ORIGINALS_BUCKET: z.string().min(1).optional(),
   SESSION_SECRET: z.string().min(32),
   AUTH_SECRET: z.string().min(32),
   /** Shared secret Cloud Scheduler sends to /api/internal/*. Internal jobs are disabled when unset. */

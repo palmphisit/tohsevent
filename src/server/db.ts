@@ -1,6 +1,6 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
 import { env } from "./env";
-import type { EventDoc, GuestSessionDoc, PaymentDoc, PhotoDoc, ReportDoc } from "./models";
+import type { EventDoc, GuestSessionDoc, InviteDoc, PaymentDoc, PhotoDoc, ReportDoc } from "./models";
 
 // Cloud Run instances are long-lived containers, so one pooled client per instance
 // is reused across requests. Stored on globalThis to survive dev hot reloads.
@@ -31,6 +31,7 @@ export async function collections(): Promise<{
   photos: Collection<PhotoDoc>;
   reports: Collection<ReportDoc>;
   payments: Collection<PaymentDoc>;
+  invites: Collection<InviteDoc>;
 }> {
   const db = await getDb();
   return {
@@ -39,15 +40,19 @@ export async function collections(): Promise<{
     photos: db.collection<PhotoDoc>("photos"),
     reports: db.collection<ReportDoc>("reports"),
     payments: db.collection<PaymentDoc>("payments"),
+    invites: db.collection<InviteDoc>("invites"),
   };
 }
 
 export async function ensureIndexes(): Promise<void> {
   const db = database();
-  const { events, guestSessions, photos, reports, payments } = await collections();
+  const { events, guestSessions, photos, reports, payments, invites } = await collections();
   await Promise.all([
     events.createIndex({ slug: 1 }, { unique: true }),
     events.createIndex({ ownerId: 1, createdAt: -1 }),
+    events.createIndex({ "members.userId": 1 }),
+    invites.createIndex({ tokenHash: 1 }, { unique: true }),
+    invites.createIndex({ eventId: 1, createdAt: -1 }),
     // Daily job: expire and purge albums.
     events.createIndex({ status: 1, expiresAt: 1 }),
     payments.createIndex({ stripeSessionId: 1 }, { unique: true, partialFilterExpression: { stripeSessionId: { $type: "string" } } }),

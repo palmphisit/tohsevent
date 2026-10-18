@@ -4,11 +4,12 @@ import type { ReportReason } from "@/server/models";
 import type { CreateEventInput, HostEvent, UpdateEventInput } from "@/server/services/host-events";
 import type { PublicEvent } from "@/server/services/events";
 import type { BrandingAsset, BrandingAssetKind, BrandingEditorState, SaveBrandingInput } from "@/server/services/branding";
+import type { InviteView, MemberView } from "@/server/services/members";
 import type { HostPhoto, HostPhotoView } from "@/server/services/moderation";
 import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
 import type { PreparedImage } from "./image";
 
-export type { BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
+export type { InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -187,4 +188,24 @@ export function saveBranding(eventId: string, input: SaveBrandingInput) {
 
 export function notifyGuests(eventId: string) {
   return request<{ sent: number }>(`${hostBase(eventId)}/notify-guests`, { method: "POST" });
+}
+
+export function listEventMembers(eventId: string) {
+  return request<{ members: MemberView[]; invites: InviteView[] }>(`${hostBase(eventId)}/members`);
+}
+
+export function createEventInvite(eventId: string) {
+  return request<{ url: string; expiresAt: string }>(`${hostBase(eventId)}/members`, { method: "POST" });
+}
+
+export function removeEventMember(eventId: string, userId: string) {
+  return request<null>(`${hostBase(eventId)}/members/${userId}`, { method: "DELETE" });
+}
+
+export function revokeEventInvite(eventId: string, inviteId: string) {
+  return request<null>(`${hostBase(eventId)}/invites/${inviteId}`, { method: "DELETE" });
+}
+
+export function acceptInvite(token: string) {
+  return request<{ eventId: string }>(`/api/v1/invites/${encodeURIComponent(token)}/accept`, { method: "POST" });
 }

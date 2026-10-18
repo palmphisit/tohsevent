@@ -4,6 +4,7 @@ import { HttpError } from "../http";
 import type { EventDoc, PhotoDoc, ReportDoc, ReportReason } from "../models";
 import { deleteObjects } from "../storage";
 import { incrementEventCounter } from "./events";
+import { removeOriginal } from "./originals";
 import { releasePhotoQuota, toPublicPhoto, type PublicPhoto } from "./photos";
 
 // Host-side moderation (hide / delete / review reports) and guest reports.
@@ -19,6 +20,8 @@ export interface HostPhoto extends PublicPhoto {
   reports: { reason: ReportReason; note: string | null; createdAt: string }[];
   /** Hidden automatically by SafeSearch and not reviewed yet. */
   autoFlagged: { adult: string; violence: string; racy: string } | null;
+  /** Full-resolution original (official photos), if any. */
+  original: { status: "uploading" | "ready"; bytes: number; filename: string } | null;
 }
 
 /** Needs host attention: open guest reports, or hidden by auto moderation and not yet reviewed. */
@@ -39,6 +42,9 @@ function toHostPhoto(photo: PhotoDoc, event: EventDoc, reports: HostPhoto["repor
     openReports: photo.openReports ?? 0,
     reports,
     autoFlagged: photo.autoModeration?.flagged && photo.status === "hidden" ? photo.autoModeration.labels : null,
+    original: photo.original
+      ? { status: photo.original.status, bytes: photo.original.bytes, filename: photo.original.filename }
+      : null,
   };
 }
 
@@ -144,6 +150,7 @@ export async function deletePhoto(
   await releasePhotoQuota(event._id, 1);
   await closeReports(photoId, "resolved");
   await deleteObjects(Object.values(before.keys).filter((key): key is string => !!key));
+  await removeOriginal(before);
 }
 
 /** A guest flags a visible photo. Repeated reports from the same guest are ignored. */

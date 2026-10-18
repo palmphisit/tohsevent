@@ -12,6 +12,8 @@ export interface PendingUpload {
   file: Blob;
   name: string;
   addedAt: number;
+  /** Set once the photo is published, so a resumed upload only sends the remaining original. */
+  photoId?: string;
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -47,6 +49,13 @@ export async function savePending(entry: PendingUpload): Promise<void> {
   } catch {
     // storage unavailable: uploads still work, they just can't resume
   }
+}
+
+export async function setPendingPhotoId(id: string, photoId: string): Promise<void> {
+  try {
+    const entry = await run<PendingUpload | undefined>("readonly", (store) => store.get(id));
+    if (entry) await run("readwrite", (store) => store.put({ ...entry, photoId }));
+  } catch {}
 }
 
 export async function removePending(id: string): Promise<void> {

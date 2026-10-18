@@ -6,7 +6,8 @@ import { countOpenReports } from "@/server/services/moderation";
 import { CopyButton } from "../../_components/copy-button";
 import { EventForm } from "../../_components/event-form";
 import { StatusBadge } from "../../_components/status-badge";
-import { loadHostEventPage } from "./load-event";
+import { loadEventPageForMember } from "./load-event";
+import { MembersPanel } from "./members-panel";
 
 export default function HostEventPage({ params }: PageProps<"/dashboard/events/[id]">) {
   return (
@@ -23,8 +24,9 @@ export default function HostEventPage({ params }: PageProps<"/dashboard/events/[
 
 async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">, "params">) {
   const { id } = await params;
-  const doc = await loadHostEventPage(id);
-  const event = toHostEvent(doc);
+  const { event: doc, role } = await loadEventPageForMember(id);
+  const event = toHostEvent(doc, role);
+  const owner = role === "owner";
   const [svg, openReports] = await Promise.all([qrSvg(event.guestUrl), countOpenReports(doc)]);
   const qrBase = `/api/v1/host/events/${event.id}/qr`;
 
@@ -40,42 +42,53 @@ async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">
         </div>
         <StatusBadge status={event.status} />
       </div>
+      {!owner && (
+        <p className="mt-3 rounded-xl bg-zinc-100 px-4 py-3 text-sm text-zinc-700">
+          คุณเป็นช่างภาพของงานนี้: อัปโหลดรูป Official และไฟล์ต้นฉบับได้ ส่วนการตั้งค่างานเป็นของเจ้าภาพ
+        </p>
+      )}
 
-      <Link
-        href={`/dashboard/events/${event.id}/plan`}
-        className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
-      >
-        <span className="min-w-0">
-          <span className="block font-medium">แพ็กเกจ {event.plan.name}</span>
-          <span className="block text-sm text-zinc-500">
-            แขก {event.usage.guests}/{event.plan.maxGuests} · รูป {event.usage.photos}/{event.plan.maxPhotos}
-            {event.expiresAt &&
-              ` · เปิดถึง ${new Date(event.expiresAt).toLocaleDateString("th-TH", { dateStyle: "medium", timeZone: "Asia/Bangkok" })}`}
-          </span>
-        </span>
-        <span className="shrink-0 text-sm font-medium">{event.plan.tier === "premium" ? "ดูรายละเอียด" : "อัปเกรด ›"}</span>
-      </Link>
+      {owner && (
+        <>
+          <Link
+            href={`/dashboard/events/${event.id}/plan`}
+            className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
+          >
+            <span className="min-w-0">
+              <span className="block font-medium">แพ็กเกจ {event.plan.name}</span>
+              <span className="block text-sm text-zinc-500">
+                แขก {event.usage.guests}/{event.plan.maxGuests} · รูป {event.usage.photos}/{event.plan.maxPhotos}
+                {event.expiresAt &&
+                  ` · เปิดถึง ${new Date(event.expiresAt).toLocaleDateString("th-TH", { dateStyle: "medium", timeZone: "Asia/Bangkok" })}`}
+              </span>
+            </span>
+            <span className="shrink-0 text-sm font-medium">{event.plan.tier === "premium" ? "ดูรายละเอียด" : "อัปเกรด ›"}</span>
+          </Link>
 
-      <Link
-        href={`/dashboard/events/${event.id}/branding`}
-        className="mt-3 flex items-center justify-between rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
-      >
-        <span>
-          <span className="block font-medium">ปรับแต่งหน้างาน</span>
-          <span className="block text-sm text-zinc-500">สี, ฟอนต์, โลโก้, รูปปก และผู้สนับสนุน (Premium)</span>
-        </span>
-        <span className="text-zinc-400">›</span>
-      </Link>
+          <Link
+            href={`/dashboard/events/${event.id}/branding`}
+            className="mt-3 flex items-center justify-between rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
+          >
+            <span>
+              <span className="block font-medium">ปรับแต่งหน้างาน</span>
+              <span className="block text-sm text-zinc-500">สี, ฟอนต์, โลโก้, รูปปก และผู้สนับสนุน (Premium)</span>
+            </span>
+            <span className="text-zinc-400">›</span>
+          </Link>
+        </>
+      )}
 
       <Link
         href={`/dashboard/events/${event.id}/photos`}
         className="mt-3 flex items-center justify-between rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
       >
         <span>
-          <span className="block font-medium">จัดการรูปภาพ</span>
-          <span className="block text-sm text-zinc-500">ซ่อน/ลบรูป, ดูรูปที่ถูกรายงาน, อัปโหลดรูป Official</span>
+          <span className="block font-medium">{owner ? "จัดการรูปภาพ" : "อัปโหลดรูป Official"}</span>
+          <span className="block text-sm text-zinc-500">
+            {owner ? "ซ่อน/ลบรูป, ดูรูปที่ถูกรายงาน, อัปโหลดรูป Official" : "อัปโหลดรูปและไฟล์ต้นฉบับ, ดาวน์โหลดอัลบั้ม"}
+          </span>
         </span>
-        {openReports > 0 ? (
+        {owner && openReports > 0 ? (
           <span className="rounded-full bg-red-600 px-2.5 py-1 text-xs font-medium text-white">
             {openReports} รายการรอตรวจ
           </span>
@@ -117,10 +130,15 @@ async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">
           </div>
         </section>
 
-        <section className="rounded-2xl border border-zinc-200 p-4 sm:p-6">
-          <h2 className="mb-4 text-sm font-medium">ตั้งค่างาน</h2>
-          <EventForm event={event} />
-        </section>
+        {owner && (
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-zinc-200 p-4 sm:p-6">
+              <h2 className="mb-4 text-sm font-medium">ตั้งค่างาน</h2>
+              <EventForm event={event} />
+            </section>
+            <MembersPanel eventId={event.id} />
+          </div>
+        )}
       </div>
     </>
   );

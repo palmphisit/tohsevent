@@ -4,6 +4,7 @@ import { PURGE_GRACE_DAYS } from "../plans";
 import { deleteObjects } from "../storage";
 import { brandingKeys } from "./branding";
 import { sendExpiryReminders } from "./notifications";
+import { removeOriginal } from "./originals";
 import { releasePhotoQuota } from "./photos";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -81,7 +82,10 @@ async function purgeExpiredAlbums(now: Date): Promise<{ photosPurged: number; al
       await Promise.all(
         batch
           .slice(i, i + DELETE_CONCURRENCY)
-          .map((photo) => deleteObjects(Object.values(photo.keys).filter((key): key is string => !!key))),
+          .map(async (photo) => {
+            await deleteObjects(Object.values(photo.keys).filter((key): key is string => !!key));
+            await removeOriginal(photo);
+          }),
       );
     }
     if (batch.length > 0) {

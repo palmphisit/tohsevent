@@ -208,12 +208,27 @@ Index หลัก: `photos { eventId: 1, source: 1, status: 1, createdAt: -1 }`
 
 ## Phase 3 — Photographer Suite
 
-- **Desktop App (macOS/Windows)** — แนะนำ **Tauri** (เบา, ไฟล์เล็ก) หรือ Electron (ถ้าอยากใช้ Node ecosystem ทั้งหมด)
-- **Bulk Upload** แบบ S3 Multipart + resumable, อัปโหลดขนานหลายไฟล์, ทนเน็ตหลุด
-- **Folder Watcher** — วิธีที่ใช้ได้จริงสำหรับ "Tethering": ให้ช่างภาพใช้ซอฟต์แวร์ tether ของกล้อง/Lightroom/Capture One ที่เขาใช้อยู่แล้ว ซึ่งเขียนไฟล์ลงโฟลเดอร์ แล้วแอปเราคอยดูโฟลเดอร์นั้นและอัปโหลดทันที (การ tether ตรงกับกล้องผ่าน SDK ของแต่ละยี่ห้อค่อยพิจารณาภายหลัง เพราะต้นทุนสูงมาก)
-- **Auto-watermarking** — preset ลายน้ำของช่างภาพ ใส่ก่อนอัปโหลด
-- **Pro Subscription** — รายเดือน/รายปี สร้างงานไม่จำกัด, Storage สูง, ปลดล็อก White-label
-- **Portfolio/Client gallery** ของช่างภาพ, ทีมช่างภาพหลายคนต่องาน (เบื้องต้น)
+### การตัดสินใจ (18 ต.ค. 2026)
+
+- **แอป desktop: Electron** (TypeScript/React ชุดเดียวกับเว็บ, chokidar ดูโฟลเดอร์, sharp ย่อรูป/ใส่ลายน้ำ)
+  อยู่ใน repo เดียวกันที่โฟลเดอร์ `desktop/`
+- **Pro Subscription: 990 ฿/เดือน หรือ 9,900 ฿/ปี** (Stripe Billing) — สร้างงานไม่จำกัด ทุกงานได้สิทธิ์ระดับ Premium,
+  อัปไฟล์ต้นฉบับ, ใช้แอป desktop, ลายน้ำของช่างภาพเอง, white-label (ไม่มีแบรนด์ Tohs Event), storage รวม 500 GB
+- **ขายรูปความละเอียดสูงให้แขก: ช่างภาพตั้งราคาเอง** รับเงินผ่าน **Stripe Connect** (แพลตฟอร์มหักค่าธรรมเนียม เช่น 15%)
+
+### ลำดับงาน
+
+1. **3a — ฐานฝั่ง server**
+   - Bearer token (Better Auth) ให้แอป desktop เรียก API ได้ (login ในแอปผ่าน device authorization ใน 3b)
+   - สมาชิกของงาน: เจ้าภาพเชิญช่างภาพเข้างานด้วยลิงก์ ช่างภาพอัปรูป Official และไฟล์ต้นฉบับได้ แต่แก้ตั้งค่างานไม่ได้
+   - ไฟล์ต้นฉบับ (สูงสุด 200 MB/ไฟล์) อัปแบบ multipart ตรงเข้า **bucket แยกที่ไม่เปิด public** (`R2_ORIGINALS_BUCKET`)
+     ต่อได้เมื่อเน็ตหลุด, เจ้าภาพ/ช่างภาพดาวน์โหลดผ่านลิงก์ชั่วคราว (presigned GET)
+   - หน้า dashboard: เชิญช่างภาพ และอัปไฟล์ต้นฉบับจากเบราว์เซอร์ได้ (ทางเลือกก่อนมีแอป)
+2. **3b — แอป desktop (Electron)**: login แบบ device code, เลือกงาน, Bulk upload หลายไฟล์พร้อมกัน, Folder Watcher
+   (ใช้กับโปรแกรม tether ของกล้อง/Lightroom/Capture One ที่เขียนไฟล์ลงโฟลเดอร์), ลายน้ำของช่างภาพ, คิวที่ทนปิดแอป
+3. **3c — Pro Subscription** (Stripe Billing + Customer Portal), entitlements, white-label, โควตา storage
+4. **3d — ขายรูป high-res** (Stripe Connect onboarding ของช่างภาพ, ราคาต่อรูป/ทั้งอัลบั้ม, ลิงก์ดาวน์โหลดหลังจ่าย)
+5. **3e** — Portfolio / client gallery ของช่างภาพ
 
 ## Phase 4 — AI Face Search
 

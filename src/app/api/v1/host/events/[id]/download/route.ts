@@ -3,7 +3,7 @@ import { z } from "zod";
 import { audit } from "@/server/audit";
 import { HttpError, route } from "@/server/http";
 import { albumZip } from "@/server/services/archive";
-import { requireHostEvent } from "@/server/services/host-events";
+import { requireEventMember } from "@/server/services/host-events";
 
 const querySchema = z.object({
   source: z.enum(["guest", "official"]),
@@ -12,7 +12,7 @@ const querySchema = z.object({
 
 /** ZIP of the event's visible photos, in parts of ZIP_PART_SIZE (host only). */
 export const GET = route(async (req: NextRequest, ctx: RouteContext<"/api/v1/host/events/[id]/download">) => {
-  const { host, event } = await requireHostEvent(req, (await ctx.params).id);
+  const { host, event } = await requireEventMember(req, (await ctx.params).id);
   const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
   if (!parsed.success) throw new HttpError(400, "invalid_query", z.prettifyError(parsed.error));
   const { source, part } = parsed.data;

@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { audit } from "@/server/audit";
 import { parseJson, parseObjectId, route } from "@/server/http";
-import { requireHostEvent } from "@/server/services/host-events";
+import { requireEventMember, requireHostEvent } from "@/server/services/host-events";
 import { deletePhoto, moderatePhoto } from "@/server/services/moderation";
 
 const patchSchema = z
@@ -28,12 +28,12 @@ export const PATCH = route(async (req: NextRequest, ctx: Ctx) => {
   return Response.json({ photo });
 });
 
-/** Permanently removes the photo files from storage. */
+/** Permanently removes the photo files from storage. Photographers may delete their own uploads. */
 export const DELETE = route(async (req: NextRequest, ctx: Ctx) => {
   const { id, photoId } = await ctx.params;
-  const { host, event } = await requireHostEvent(req, id);
+  const { host, event, role } = await requireEventMember(req, id);
   const target = parseObjectId(photoId, "photo_not_found");
-  await deletePhoto(event, target);
+  await deletePhoto(event, target, role === "owner" ? {} : { uploaderId: host.id });
   await audit({ eventId: event._id, actor: { type: "host", id: host.id }, action: "photo.delete", target });
   return new Response(null, { status: 204 });
 });

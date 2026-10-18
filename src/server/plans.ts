@@ -15,6 +15,8 @@ export interface Plan {
   retentionDays: number;
   watermark: boolean;
   branding: boolean;
+  /** Photographers may upload full-resolution originals (private bucket). */
+  originals: boolean;
 }
 
 export const PLANS: Record<PlanTier, Plan> = {
@@ -28,6 +30,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     retentionDays: 7,
     watermark: true,
     branding: false,
+    originals: false,
   },
   standard: {
     tier: "standard",
@@ -39,6 +42,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     retentionDays: 60,
     watermark: false,
     branding: false,
+    originals: false,
   },
   premium: {
     tier: "premium",
@@ -50,6 +54,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     retentionDays: 180,
     watermark: false,
     branding: true,
+    originals: true,
   },
 };
 
