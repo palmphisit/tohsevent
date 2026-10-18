@@ -31,41 +31,24 @@ function photoKey(eventId: ObjectId, photoId: ObjectId, variant: PhotoVariant, c
   return `events/${eventId.toHexString()}/photos/${photoId.toHexString()}/${variant}.${EXTENSIONS[contentType]}`;
 }
 
-/**
- * Step 1 of the upload flow: reserve quota, create `pending` photo docs and return
- * presigned PUT URLs. The browser then uploads both variants directly to R2.
- */
-export async function createGuestUploads(
+type Uploader = PhotoDoc["uploader"];
+
+/** Inserts `pending` photo docs and returns presigned PUT URLs for every variant. */
+async function createPendingPhotos(
   event: EventDoc,
-  guestSessionId: ObjectId,
+  source: PhotoSource,
+  uploader: Uploader,
   files: UploadRequestFile[],
 ): Promise<PresignedUpload[]> {
-  if (!event.settings.guestUpload) throw new HttpError(403, "uploads_disabled", "Uploads are closed for this event");
-
-  const { guestSessions, photos } = await collections();
-
-  // Atomic quota reservation: only succeeds if the guest still has room for all files.
-  const session = await guestSessions.findOneAndUpdate(
-    {
-      _id: guestSessionId,
-      eventId: event._id,
-      uploadCount: { $lte: event.settings.maxPhotosPerGuest - files.length },
-    },
-    { $inc: { uploadCount: files.length } },
-    { returnDocument: "after" },
-  );
-  if (!session) {
-    throw new HttpError(429, "quota_exceeded", `Each guest can upload up to ${event.settings.maxPhotosPerGuest} photos`);
-  }
-
+  const { photos } = await collections();
   const now = new Date();
   const docs: PhotoDoc[] = files.map((file) => {
     const _id = new ObjectId();
     return {
       _id,
       eventId: event._id,
-      source: "guest",
-      uploader: { type: "guest", id: session._id, displayName: session.displayName },
+      source,
+      uploader,
       keys: {
         display: photoKey(event._id, _id, "display", file.contentType),
         thumb: photoKey(event._id, _id, "thumb", file.contentType),
@@ -76,6 +59,7 @@ export async function createGuestUploads(
       height: file.height,
       takenAt: file.takenAt ? new Date(file.takenAt) : null,
       status: "pending",
+      openReports: 0,
       createdAt: now,
       completedAt: null,
     };
@@ -96,22 +80,63 @@ export async function createGuestUploads(
 }
 
 /**
- * Step 3: verify both objects really exist in R2 with the declared size/type,
- * then flip the photo to `ready`. Idempotent for retries.
+ * Step 1 of the guest upload flow: reserve quota, create `pending` photo docs and return
+ * presigned PUT URLs. The browser then uploads both variants directly to R2.
  */
-export async function completeGuestUpload(event: EventDoc, guestSessionId: ObjectId, photoId: ObjectId) {
+export async function createGuestUploads(
+  event: EventDoc,
+  guestSessionId: ObjectId,
+  files: UploadRequestFile[],
+): Promise<PresignedUpload[]> {
+  if (!event.settings.guestUpload) throw new HttpError(403, "uploads_disabled", "Uploads are closed for this event");
+
+  const { guestSessions } = await collections();
+
+  // Atomic quota reservation: only succeeds if the guest still has room for all files.
+  const session = await guestSessions.findOneAndUpdate(
+    {
+      _id: guestSessionId,
+      eventId: event._id,
+      uploadCount: { $lte: event.settings.maxPhotosPerGuest - files.length },
+    },
+    { $inc: { uploadCount: files.length } },
+    { returnDocument: "after" },
+  );
+  if (!session) {
+    throw new HttpError(429, "quota_exceeded", `Each guest can upload up to ${event.settings.maxPhotosPerGuest} photos`);
+  }
+
+  return createPendingPhotos(event, "guest", { type: "guest", id: session._id, displayName: session.displayName }, files);
+}
+
+/** Official photos uploaded by the host (no quota; works even when guest uploads are closed). */
+export function createOfficialUploads(
+  event: EventDoc,
+  host: { id: ObjectId; name: string },
+  files: UploadRequestFile[],
+): Promise<PresignedUpload[]> {
+  return createPendingPhotos(event, "official", { type: "user", id: host.id, displayName: host.name }, files);
+}
+
+/**
+ * Step 3: verify both objects really exist in R2 with the declared size/type,
+ * then flip the photo to `ready`. Only the original uploader may complete it.
+ * Idempotent for retries.
+ */
+export async function completeUpload(event: EventDoc, uploaderId: ObjectId, photoId: ObjectId) {
   const { photos } = await collections();
-  const photo = await photos.findOne({ _id: photoId, eventId: event._id, "uploader.id": guestSessionId });
+  const photo = await photos.findOne({ _id: photoId, eventId: event._id, "uploader.id": uploaderId });
   if (!photo) throw new HttpError(404, "photo_not_found");
   if (photo.status !== "pending") return toPublicPhoto(photo);
 
-  for (const variant of VARIANTS) {
-    const head = await headObject(photo.keys[variant]);
+  const heads = await Promise.all(VARIANTS.map((variant) => headObject(photo.keys[variant])));
+  VARIANTS.forEach((variant, i) => {
+    const head = heads[i];
     if (!head) throw new HttpError(409, "upload_incomplete", `The ${variant} file has not been uploaded yet`);
     if (head.ContentLength !== photo.bytes[variant] || head.ContentType !== photo.contentType) {
       throw new HttpError(409, "upload_mismatch", `The ${variant} file does not match the declared size or type`);
     }
-  }
+  });
 
   const updated = await photos.findOneAndUpdate(
     { _id: photo._id, status: "pending" },

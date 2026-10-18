@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { qrSvg } from "@/server/qr";
 import { toHostEvent } from "@/server/services/host-events";
+import { countOpenReports } from "@/server/services/moderation";
 import { CopyButton } from "../../_components/copy-button";
 import { EventForm } from "../../_components/event-form";
 import { StatusBadge } from "../../_components/status-badge";
@@ -22,8 +23,9 @@ export default function HostEventPage({ params }: PageProps<"/dashboard/events/[
 
 async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">, "params">) {
   const { id } = await params;
-  const event = toHostEvent(await loadHostEventPage(id));
-  const svg = await qrSvg(event.guestUrl);
+  const doc = await loadHostEventPage(id);
+  const event = toHostEvent(doc);
+  const [svg, openReports] = await Promise.all([qrSvg(event.guestUrl), countOpenReports(doc)]);
   const qrBase = `/api/v1/host/events/${event.id}/qr`;
 
   return (
@@ -38,6 +40,23 @@ async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">
         </div>
         <StatusBadge status={event.status} />
       </div>
+
+      <Link
+        href={`/dashboard/events/${event.id}/photos`}
+        className="mt-6 flex items-center justify-between rounded-2xl border border-zinc-200 px-4 py-4 hover:bg-zinc-50"
+      >
+        <span>
+          <span className="block font-medium">จัดการรูปภาพ</span>
+          <span className="block text-sm text-zinc-500">ซ่อน/ลบรูป, ดูรูปที่ถูกรายงาน, อัปโหลดรูป Official</span>
+        </span>
+        {openReports > 0 ? (
+          <span className="rounded-full bg-red-600 px-2.5 py-1 text-xs font-medium text-white">
+            {openReports} รายการรอตรวจ
+          </span>
+        ) : (
+          <span className="text-zinc-400">›</span>
+        )}
+      </Link>
 
       <div className="mt-6 grid gap-6 md:grid-cols-[280px_1fr]">
         <section className="rounded-2xl border border-zinc-200 p-4">

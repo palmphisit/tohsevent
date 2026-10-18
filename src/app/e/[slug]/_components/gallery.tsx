@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Lightbox } from "@/components/lightbox";
 import { listPhotos, type PublicPhoto } from "@/lib/api-client";
+import { ReportPhotoButton, SavePhotoButton } from "./photo-actions";
 
 type Source = PublicPhoto["source"];
 
@@ -11,7 +13,15 @@ const TABS: { source: Source; label: string }[] = [
 ];
 const POLL_MS = 15_000;
 
-export function Gallery({ slug, recentUploads }: { slug: string; recentUploads: PublicPhoto[] }) {
+export function Gallery({
+  slug,
+  recentUploads,
+  ensureSession,
+}: {
+  slug: string;
+  recentUploads: PublicPhoto[];
+  ensureSession: () => Promise<unknown>;
+}) {
   const [source, setSource] = useState<Source>("guest");
 
   return (
@@ -36,13 +46,25 @@ export function Gallery({ slug, recentUploads }: { slug: string; recentUploads: 
         slug={slug}
         source={source}
         recentUploads={source === "guest" ? recentUploads : []}
+        ensureSession={ensureSession}
       />
     </section>
   );
 }
 
-function PhotoGrid({ slug, source, recentUploads }: { slug: string; source: Source; recentUploads: PublicPhoto[] }) {
+function PhotoGrid({
+  slug,
+  source,
+  recentUploads,
+  ensureSession,
+}: {
+  slug: string;
+  source: Source;
+  recentUploads: PublicPhoto[];
+  ensureSession: () => Promise<unknown>;
+}) {
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "idle" | "error">("loading");
 
@@ -110,9 +132,9 @@ function PhotoGrid({ slug, source, recentUploads }: { slug: string; source: Sour
   return (
     <>
       <ul className="mt-4 grid grid-cols-3 gap-1 sm:grid-cols-4">
-        {visible.map((photo) => (
+        {visible.map((photo, i) => (
           <li key={photo.id} className="aspect-square overflow-hidden bg-zinc-100">
-            <a href={photo.displayUrl} target="_blank" rel="noopener">
+            <button type="button" onClick={() => setOpenIndex(i)} className="block h-full w-full">
               {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
               <img
                 src={photo.thumbUrl}
@@ -120,7 +142,7 @@ function PhotoGrid({ slug, source, recentUploads }: { slug: string; source: Sour
                 loading="lazy"
                 className="h-full w-full object-cover"
               />
-            </a>
+            </button>
           </li>
         ))}
       </ul>
@@ -132,6 +154,20 @@ function PhotoGrid({ slug, source, recentUploads }: { slug: string; source: Sour
         >
           {state === "loading" ? "กำลังโหลด…" : "ดูรูปเพิ่มเติม"}
         </button>
+      )}
+      {openIndex !== null && (
+        <Lightbox
+          photos={visible}
+          index={openIndex}
+          onClose={() => setOpenIndex(null)}
+          onNavigate={setOpenIndex}
+          actions={(photo) => (
+            <>
+              <SavePhotoButton photo={photo} />
+              <ReportPhotoButton slug={slug} photo={photo} ensureSession={ensureSession} />
+            </>
+          )}
+        />
       )}
     </>
   );

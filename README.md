@@ -44,10 +44,14 @@ pnpm dev
 | GET | `/api/v1/events/:slug/photos?source=guest\|official&cursor=` | รายการรูป (แบ่งหน้าด้วย cursor) |
 | POST | `/api/v1/events/:slug/uploads` | ขอ presigned upload URL (สูงสุด 10 ไฟล์ต่อครั้ง) |
 | POST | `/api/v1/events/:slug/photos/:photoId/complete` | ยืนยันว่าอัปโหลดเสร็จแล้ว |
+| POST | `/api/v1/events/:slug/photos/:photoId/report` | แขกรายงาน / ขอลบรูป (`inappropriate`, `remove_me`, `other`) |
 | * | `/api/auth/*` | บัญชีเจ้าภาพ (Better Auth): `sign-up/email`, `sign-in/email`, `sign-out`, `get-session` |
 | GET / POST | `/api/v1/host/events` | รายการงานของฉัน / สร้างงาน (ต้อง login) |
 | GET / PATCH | `/api/v1/host/events/:id` | ดู / แก้ไขงาน (เฉพาะเจ้าของ) |
 | GET | `/api/v1/host/events/:id/qr?format=png\|svg&size=` | ดาวน์โหลด QR Code ของหน้าแขก |
+| GET | `/api/v1/host/events/:id/photos?view=guest\|official\|reported` | รูปทั้งหมดรวมที่ซ่อนอยู่ สำหรับ moderation |
+| PATCH / DELETE | `/api/v1/host/events/:id/photos/:photoId` | ซ่อน/แสดง (`status`), ปิดรายงาน (`dismissReports`) / ลบรูปและไฟล์ใน storage |
+| POST | `/api/v1/host/events/:id/uploads` และ `.../photos/:photoId/complete` | อัปโหลดรูป Official (flow เดียวกับแขก) |
 
 ## Project layout
 

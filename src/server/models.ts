@@ -48,8 +48,26 @@ export interface PhotoDoc {
   height: number;
   takenAt: Date | null;
   status: PhotoStatus;
+  /** Number of open guest reports (missing on photos uploaded before reports existed). */
+  openReports?: number;
   createdAt: Date;
   completedAt: Date | null;
+  deletedAt?: Date;
+}
+
+export const REPORT_REASONS = ["inappropriate", "remove_me", "other"] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+
+export interface ReportDoc {
+  _id: ObjectId;
+  eventId: ObjectId;
+  photoId: ObjectId;
+  guestSessionId: ObjectId;
+  reason: ReportReason;
+  note: string | null;
+  status: "open" | "resolved" | "dismissed";
+  createdAt: Date;
+  resolvedAt: Date | null;
 }
 
 export const UPLOAD_CONTENT_TYPES = ["image/jpeg", "image/webp"] as const;

@@ -1,0 +1,18 @@
+import { z } from "zod";
+import { UPLOAD_CONTENT_TYPES, UPLOAD_LIMITS } from "../models";
+
+const fileSchema = z.object({
+  contentType: z.enum(UPLOAD_CONTENT_TYPES),
+  bytes: z.object({
+    display: z.number().int().positive().max(UPLOAD_LIMITS.maxBytes.display),
+    thumb: z.number().int().positive().max(UPLOAD_LIMITS.maxBytes.thumb),
+  }),
+  width: z.number().int().positive().max(20_000),
+  height: z.number().int().positive().max(20_000),
+  takenAt: z.iso.datetime().optional(),
+});
+
+/** Body of POST .../uploads (guest and host). */
+export const uploadRequestSchema = z.object({
+  files: z.array(fileSchema).min(1).max(UPLOAD_LIMITS.maxFilesPerRequest),
+});

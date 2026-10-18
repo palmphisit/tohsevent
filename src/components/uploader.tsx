@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  ApiError,
-  completeUpload,
-  putToStorage,
-  reserveUpload,
-  type GuestSession,
-  type PublicPhoto,
-} from "@/lib/api-client";
+import { ApiError, putToStorage, type PublicPhoto } from "@/lib/api-client";
 import { prepareImage, type PreparedImage } from "@/lib/image";
 import type { PresignedUpload } from "@/server/services/photos";
 
@@ -36,11 +29,19 @@ function errorMessage(error: unknown): string {
   return "อัปโหลดไม่สำเร็จ";
 }
 
+/** Endpoints for one upload target (guest page or host dashboard); the flow is the same. */
+export interface UploadTarget {
+  /** Runs before each upload, e.g. to join the event as a guest. */
+  prepare?: () => Promise<unknown>;
+  reserve: (image: PreparedImage) => Promise<PresignedUpload>;
+  complete: (photoId: string) => Promise<PublicPhoto>;
+}
+
 /**
  * Runs the 3-step upload for one item, resuming from whatever a previous attempt
  * already finished (resized image, unexpired reservation).
  */
-async function uploadItem(slug: string, item: QueueItem, update: (patch: Partial<QueueItem>) => void) {
+async function uploadItem(target: UploadTarget, item: QueueItem, update: (patch: Partial<QueueItem>) => void) {
   let { image, reservation } = item;
   if (!image) {
     update({ status: "processing", error: undefined });
@@ -50,32 +51,32 @@ async function uploadItem(slug: string, item: QueueItem, update: (patch: Partial
 
   update({ status: "uploading", error: undefined });
   if (!reservation || Date.now() - reservation.at > RESERVATION_TTL_MS) {
-    reservation = { data: await reserveUpload(slug, image), at: Date.now() };
+    reservation = { data: await target.reserve(image), at: Date.now() };
     update({ reservation });
   }
 
   await putToStorage(reservation.data, image);
-  const { photo } = await completeUpload(slug, reservation.data.photoId);
-  return photo;
+  return target.complete(reservation.data.photoId);
 }
 
+/** Multi-file photo uploader: resizes in the browser and uploads straight to storage. */
 export function Uploader({
-  slug,
-  ensureSession,
+  target,
   onUploaded,
+  label = "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด",
 }: {
-  slug: string;
-  ensureSession: () => Promise<GuestSession>;
+  target: UploadTarget;
   onUploaded: (photo: PublicPhoto) => void;
+  label?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<QueueItem[]>([]);
   const itemsRef = useRef(new Map<string, QueueItem>());
   const queueRef = useRef<string[]>([]);
   const activeRef = useRef(0);
-  const callbacks = useRef({ ensureSession, onUploaded });
+  const callbacks = useRef({ target, onUploaded });
   useEffect(() => {
-    callbacks.current = { ensureSession, onUploaded };
+    callbacks.current = { target, onUploaded };
   });
 
   const inFlight = items.some((i) => i.status === "queued" || i.status === "processing" || i.status === "uploading");
@@ -103,8 +104,9 @@ export function Uploader({
 
   async function process(id: string) {
     try {
-      await callbacks.current.ensureSession();
-      const photo = await uploadItem(slug, itemsRef.current.get(id)!, (patch) => update(id, patch));
+      const { target } = callbacks.current;
+      await target.prepare?.();
+      const photo = await uploadItem(target, itemsRef.current.get(id)!, (patch) => update(id, patch));
       update(id, { status: "done", image: undefined, reservation: undefined });
       callbacks.current.onUploaded(photo);
     } catch (error) {
@@ -163,7 +165,7 @@ export function Uploader({
         onClick={() => inputRef.current?.click()}
         className="w-full rounded-xl bg-zinc-900 px-4 py-4 text-lg font-medium text-white active:scale-[0.99]"
       >
-        ถ่ายรูป / เลือกรูปเพื่ออัปโหลด
+        {label}
       </button>
 
       {items.length > 0 && (

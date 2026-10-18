@@ -1,9 +1,17 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { ApiError, joinEvent, type GuestSession, type PublicEvent, type PublicPhoto } from "@/lib/api-client";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Uploader, type UploadTarget } from "@/components/uploader";
+import {
+  ApiError,
+  completeUpload,
+  joinEvent,
+  reserveUpload,
+  type GuestSession,
+  type PublicEvent,
+  type PublicPhoto,
+} from "@/lib/api-client";
 import { Gallery } from "./gallery";
-import { Uploader } from "./uploader";
 
 export function GuestApp({ event, initialSession }: { event: PublicEvent; initialSession: GuestSession | null }) {
   const [session, setSession] = useState(initialSession);
@@ -27,6 +35,14 @@ export function GuestApp({ event, initialSession }: { event: PublicEvent; initia
   }, [session, event.slug, displayName]);
 
   const onUploaded = useCallback((photo: PublicPhoto) => setUploaded((prev) => [photo, ...prev]), []);
+  const uploadTarget = useMemo<UploadTarget>(
+    () => ({
+      prepare: ensureSession,
+      reserve: (image) => reserveUpload(event.slug, image),
+      complete: async (photoId) => (await completeUpload(event.slug, photoId)).photo,
+    }),
+    [ensureSession, event.slug],
+  );
 
   if (event.accessMode === "password" && !session) {
     return <PasswordGate event={event} onJoined={setSession} />;
@@ -52,13 +68,13 @@ export function GuestApp({ event, initialSession }: { event: PublicEvent; initia
               className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-zinc-900"
             />
           )}
-          <Uploader slug={event.slug} ensureSession={ensureSession} onUploaded={onUploaded} />
+          <Uploader target={uploadTarget} onUploaded={onUploaded} />
         </section>
       ) : (
         <p className="mt-6 rounded-xl bg-zinc-100 px-4 py-3 text-sm text-zinc-600">ปิดรับการอัปโหลดรูปสำหรับงานนี้แล้ว</p>
       )}
 
-      <Gallery slug={event.slug} recentUploads={uploaded} />
+      <Gallery slug={event.slug} recentUploads={uploaded} ensureSession={ensureSession} />
     </main>
   );
 }

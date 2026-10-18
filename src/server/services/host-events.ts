@@ -1,8 +1,9 @@
 import { randomInt } from "node:crypto";
 import { MongoServerError, ObjectId } from "mongodb";
+import { requireHost, type Host } from "../auth";
 import { collections } from "../db";
 import { env } from "../env";
-import { HttpError } from "../http";
+import { HttpError, parseObjectId } from "../http";
 import type { EventDoc, EventStatus } from "../models";
 import { hashPassword } from "../password";
 
@@ -66,6 +67,13 @@ export async function getHostEvent(ownerId: ObjectId, eventId: ObjectId): Promis
   const event = await events.findOne({ _id: eventId, ownerId });
   if (!event) throw new HttpError(404, "event_not_found");
   return event;
+}
+
+/** Route-handler helper: the signed-in host and their event `id`, or 401/404. */
+export async function requireHostEvent(req: Request, id: string): Promise<{ host: Host; event: EventDoc }> {
+  const host = await requireHost(req);
+  const event = await getHostEvent(host.id, parseObjectId(id, "event_not_found"));
+  return { host, event };
 }
 
 export interface CreateEventInput {

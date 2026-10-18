@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   HeadObjectCommand,
   NotFound,
   PutObjectCommand,
@@ -54,6 +55,14 @@ export async function headObject(key: string): Promise<HeadObjectCommandOutput |
     if (error instanceof NotFound || (error as { name?: string }).name === "NotFound") return null;
     throw error;
   }
+}
+
+/**
+ * Deletes objects one by one. DeleteObjects (batch) requires a checksum header whose
+ * algorithm support differs between R2 and S3 SDK versions; photos only have a few keys.
+ */
+export async function deleteObjects(keys: string[]): Promise<void> {
+  await Promise.all(keys.map((Key) => s3().send(new DeleteObjectCommand({ Bucket: env().R2_BUCKET, Key }))));
 }
 
 export function publicUrl(key: string): string {

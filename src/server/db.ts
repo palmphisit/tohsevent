@@ -1,6 +1,6 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
 import { env } from "./env";
-import type { EventDoc, GuestSessionDoc, PhotoDoc } from "./models";
+import type { EventDoc, GuestSessionDoc, PhotoDoc, ReportDoc } from "./models";
 
 // Cloud Run instances are long-lived containers, so one pooled client per instance
 // is reused across requests. Stored on globalThis to survive dev hot reloads.
@@ -29,18 +29,20 @@ export async function collections(): Promise<{
   events: Collection<EventDoc>;
   guestSessions: Collection<GuestSessionDoc>;
   photos: Collection<PhotoDoc>;
+  reports: Collection<ReportDoc>;
 }> {
   const db = await getDb();
   return {
     events: db.collection<EventDoc>("events"),
     guestSessions: db.collection<GuestSessionDoc>("guestSessions"),
     photos: db.collection<PhotoDoc>("photos"),
+    reports: db.collection<ReportDoc>("reports"),
   };
 }
 
 export async function ensureIndexes(): Promise<void> {
   const db = database();
-  const { events, guestSessions, photos } = await collections();
+  const { events, guestSessions, photos, reports } = await collections();
   await Promise.all([
     events.createIndex({ slug: 1 }, { unique: true }),
     events.createIndex({ ownerId: 1, createdAt: -1 }),
@@ -50,6 +52,14 @@ export async function ensureIndexes(): Promise<void> {
     photos.createIndex({ "uploader.id": 1, eventId: 1 }),
     // Cleanup of uploads that were never completed.
     photos.createIndex({ status: 1, createdAt: 1 }),
+    // Host moderation: reported photos per event.
+    photos.createIndex({ eventId: 1, openReports: 1, _id: -1 }, { partialFilterExpression: { openReports: { $gt: 0 } } }),
+    // One open report per guest per photo.
+    reports.createIndex(
+      { photoId: 1, guestSessionId: 1 },
+      { unique: true, partialFilterExpression: { status: "open" } },
+    ),
+    reports.createIndex({ eventId: 1, status: 1, createdAt: -1 }),
     // Better Auth collections (the adapter does not create indexes itself).
     db.collection("user").createIndex({ email: 1 }, { unique: true }),
     db.collection("session").createIndex({ token: 1 }, { unique: true }),

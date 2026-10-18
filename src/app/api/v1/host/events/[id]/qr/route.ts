@@ -1,9 +1,8 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireHost } from "@/server/auth";
-import { HttpError, parseObjectId, route } from "@/server/http";
+import { HttpError, route } from "@/server/http";
 import { qrPng, qrSvg } from "@/server/qr";
-import { getHostEvent, guestEventUrl } from "@/server/services/host-events";
+import { guestEventUrl, requireHostEvent } from "@/server/services/host-events";
 
 const querySchema = z.object({
   format: z.enum(["png", "svg"]).default("png"),
@@ -12,9 +11,7 @@ const querySchema = z.object({
 
 /** Downloadable QR code that opens the guest page of the event. */
 export const GET = route(async (req: NextRequest, ctx: RouteContext<"/api/v1/host/events/[id]/qr">) => {
-  const host = await requireHost(req);
-  const { id } = await ctx.params;
-  const event = await getHostEvent(host.id, parseObjectId(id, "event_not_found"));
+  const { event } = await requireHostEvent(req, (await ctx.params).id);
 
   const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
   if (!parsed.success) throw new HttpError(400, "invalid_query", z.prettifyError(parsed.error));
