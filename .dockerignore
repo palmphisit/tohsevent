@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+.env*
+!.env.example
+docs
+*.md
+docker-compose.yml
+.claude

@@ -1,0 +1,25 @@
+# Local development stack: MongoDB (Atlas Local) + RustFS (S3-compatible stand-in for Cloudflare R2).
+# Start with `pnpm services:up`, then run `pnpm setup:dev` once to create the bucket, indexes and demo events.
+services:
+  mongo:
+    image: mongodb/mongodb-atlas-local:8.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+
+  storage:
+    image: rustfs/rustfs:1.0.3
+    ports:
+      - "9000:9000" # S3 API
+    environment:
+      RUSTFS_ACCESS_KEY: devaccesskey
+      RUSTFS_SECRET_KEY: devsecretkey
+    volumes:
+      - storage-data:/data
+
+volumes:
+  mongo-data:
+  mongo-config:
+  storage-data:
