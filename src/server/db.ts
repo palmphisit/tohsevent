@@ -4,25 +4,25 @@ import type { EventDoc, GuestSessionDoc, PhotoDoc } from "./models";
 
 // Cloud Run instances are long-lived containers, so one pooled client per instance
 // is reused across requests. Stored on globalThis to survive dev hot reloads.
-const globalForMongo = globalThis as { _mongoClient?: Promise<MongoClient> };
+// The driver connects lazily on the first operation, so creating it is synchronous
+// (Better Auth's adapter needs a Db instance up front).
+const globalForMongo = globalThis as { _mongoClient?: MongoClient };
 
-export function getMongoClient(): Promise<MongoClient> {
-  if (!globalForMongo._mongoClient) {
-    const client = new MongoClient(env().MONGODB_URI, {
-      appName: "tohsevent",
-      maxPoolSize: 20,
-      serverSelectionTimeoutMS: 5_000,
-    });
-    globalForMongo._mongoClient = client.connect().catch((error) => {
-      globalForMongo._mongoClient = undefined;
-      throw error;
-    });
-  }
+export function mongoClient(): MongoClient {
+  globalForMongo._mongoClient ??= new MongoClient(env().MONGODB_URI, {
+    appName: "tohsevent",
+    maxPoolSize: 20,
+    serverSelectionTimeoutMS: 5_000,
+  });
   return globalForMongo._mongoClient;
 }
 
+export function database(): Db {
+  return mongoClient().db(env().MONGODB_DB);
+}
+
 export async function getDb(): Promise<Db> {
-  return (await getMongoClient()).db(env().MONGODB_DB);
+  return database();
 }
 
 export async function collections(): Promise<{
@@ -39,6 +39,7 @@ export async function collections(): Promise<{
 }
 
 export async function ensureIndexes(): Promise<void> {
+  const db = database();
   const { events, guestSessions, photos } = await collections();
   await Promise.all([
     events.createIndex({ slug: 1 }, { unique: true }),
@@ -49,5 +50,11 @@ export async function ensureIndexes(): Promise<void> {
     photos.createIndex({ "uploader.id": 1, eventId: 1 }),
     // Cleanup of uploads that were never completed.
     photos.createIndex({ status: 1, createdAt: 1 }),
+    // Better Auth collections (the adapter does not create indexes itself).
+    db.collection("user").createIndex({ email: 1 }, { unique: true }),
+    db.collection("session").createIndex({ token: 1 }, { unique: true }),
+    db.collection("session").createIndex({ userId: 1 }),
+    db.collection("account").createIndex({ userId: 1 }),
+    db.collection("verification").createIndex({ identifier: 1 }),
   ]);
 }

@@ -1,10 +1,11 @@
-// Typed browser client for the /api/v1 guest endpoints. Response shapes come from
+// Typed browser client for the /api/v1 endpoints (guest and host). Response shapes come from
 // the server services so both sides stay in sync.
+import type { CreateEventInput, HostEvent, UpdateEventInput } from "@/server/services/host-events";
 import type { PublicEvent } from "@/server/services/events";
 import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
 import type { PreparedImage } from "./image";
 
-export type { PublicEvent, PublicPhoto };
+export type { CreateEventInput, HostEvent, PublicEvent, PublicPhoto, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -77,4 +78,14 @@ export async function putToStorage(reservation: PresignedUpload, image: Prepared
 
 export function completeUpload(slug: string, photoId: string) {
   return request<{ photo: PublicPhoto }>(`${base(slug)}/photos/${photoId}/complete`, { method: "POST" });
+}
+
+// ---- Host (signed-in organizer) endpoints ----
+
+export function createHostEvent(input: CreateEventInput) {
+  return request<{ event: HostEvent }>("/api/v1/host/events", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateHostEvent(id: string, input: UpdateEventInput) {
+  return request<{ event: HostEvent }>(`/api/v1/host/events/${id}`, { method: "PATCH", body: JSON.stringify(input) });
 }

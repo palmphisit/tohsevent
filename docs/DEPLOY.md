@@ -48,18 +48,21 @@ gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudb
 printf '%s' 'mongodb+srv://...' | gcloud secrets create mongodb-uri --data-file=-
 printf '%s' '<R2 secret>'       | gcloud secrets create r2-secret-access-key --data-file=-
 openssl rand -base64 48 | tr -d '\n' | gcloud secrets create session-secret --data-file=-
+openssl rand -base64 48 | tr -d '\n' | gcloud secrets create auth-secret --data-file=-
 ```
 
 ให้ service account ของ Cloud Run อ่าน secrets ได้ (`roles/secretmanager.secretAccessor`)
 
 ## 4. สร้าง index ใน MongoDB (ครั้งแรก และทุกครั้งที่เพิ่ม index)
 
+ดึง connection string จาก Secret Manager มาใช้เฉพาะคำสั่งนี้ (ไม่ต้องเก็บค่าลับไว้ในไฟล์)
+และข้ามขั้น bucket เพราะตั้ง CORS ใน dashboard แล้ว:
+
 ```bash
-pnpm tsx --env-file=.env.production scripts/setup.ts
+MONGODB_URI="$(gcloud secrets versions access latest --secret=mongodb-uri)" pnpm tsx --env-file=.env.example scripts/setup.ts --skip-storage
 ```
 
-`.env.production` เป็นไฟล์ในเครื่องที่ไม่ commit มีค่าเดียวกับที่ใช้ใน Cloud Run
-(ไม่ต้องใส่ `--seed` เพราะสคริปต์จะไม่ยอม seed ข้อมูล demo เมื่อ `NODE_ENV=production`)
+เพิ่ม `--seed` ถ้าต้องการอีเวนต์ demo (`/e/demo`, `/e/demo-private`) ไว้ทดสอบ
 
 ## 5. Deploy
 
@@ -75,7 +78,7 @@ gcloud run deploy tohsevent \
   --concurrency 80 \
   --min-instances 0 --max-instances 10 \
   --set-env-vars "APP_ORIGIN=https://tohsevent.com,MONGODB_DB=tohsevent,R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com,R2_ACCESS_KEY_ID=<KEY_ID>,R2_BUCKET=tohsevent-prod,R2_PUBLIC_BASE_URL=https://media.tohsevent.com" \
-  --set-secrets "MONGODB_URI=mongodb-uri:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,SESSION_SECRET=session-secret:latest"
+  --set-secrets "MONGODB_URI=mongodb-uri:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,SESSION_SECRET=session-secret:latest,AUTH_SECRET=auth-secret:latest"
 ```
 
 - **วันจัดงานจริง**: ตั้ง `--min-instances 1` ไว้ก่อนงานเริ่ม จะได้ไม่เจอ cold start ตอนแขกสแกน QR พร้อมกัน
@@ -85,6 +88,6 @@ gcloud run deploy tohsevent \
 ## Checklist ก่อนเปิดใช้งาน
 
 - [ ] `APP_ORIGIN` ตรงกับโดเมนจริง และอยู่ใน CORS ของ R2
-- [ ] `SESSION_SECRET` สุ่มใหม่ ไม่ใช้ค่า dev
+- [ ] `SESSION_SECRET` และ `AUTH_SECRET` สุ่มใหม่ ไม่ใช้ค่า dev และไม่ซ้ำกัน
 - [ ] รัน `scripts/setup.ts` กับ production แล้ว (index ครบ)
 - [ ] ทดสอบอัปโหลดจากมือถือจริง (iOS Safari + Android Chrome) ผ่าน 4G

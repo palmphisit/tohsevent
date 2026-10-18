@@ -21,7 +21,8 @@ pnpm setup:dev        # สร้าง index, bucket + CORS และอีเ�
 pnpm dev
 ```
 
-เปิด http://localhost:3000/e/demo (งาน public) หรือ http://localhost:3000/e/demo-private (รหัสผ่าน `1234`)
+- หน้าแขก: http://localhost:3000/e/demo (งาน public) หรือ http://localhost:3000/e/demo-private (รหัสผ่าน `1234`)
+- หน้าเจ้าภาพ: http://localhost:3000/dashboard สมัครบัญชีด้วยอีเมลใดก็ได้ (ไม่มีการส่งอีเมลยืนยัน)
 
 ## Upload flow
 
@@ -43,6 +44,10 @@ pnpm dev
 | GET | `/api/v1/events/:slug/photos?source=guest\|official&cursor=` | รายการรูป (แบ่งหน้าด้วย cursor) |
 | POST | `/api/v1/events/:slug/uploads` | ขอ presigned upload URL (สูงสุด 10 ไฟล์ต่อครั้ง) |
 | POST | `/api/v1/events/:slug/photos/:photoId/complete` | ยืนยันว่าอัปโหลดเสร็จแล้ว |
+| * | `/api/auth/*` | บัญชีเจ้าภาพ (Better Auth): `sign-up/email`, `sign-in/email`, `sign-out`, `get-session` |
+| GET / POST | `/api/v1/host/events` | รายการงานของฉัน / สร้างงาน (ต้อง login) |
+| GET / PATCH | `/api/v1/host/events/:id` | ดู / แก้ไขงาน (เฉพาะเจ้าของ) |
+| GET | `/api/v1/host/events/:id/qr?format=png\|svg&size=` | ดาวน์โหลด QR Code ของหน้าแขก |
 
 ## Project layout
 
@@ -51,8 +56,11 @@ src/
   app/
     api/            Route handlers (REST API, ใช้ร่วมกับ native apps ในอนาคต)
     e/[slug]/       Guest PWA: หน้าอีเวนต์, ตัวอัปโหลด, แกลเลอรี
+    dashboard/      Host console: รายการงาน, สร้าง/แก้ไขงาน, QR Code, โปสเตอร์
+    login/          เข้าสู่ระบบ / สมัครสมาชิกเจ้าภาพ
   lib/              โค้ดฝั่ง client (ย่อรูป, API client)
-  server/           โค้ดฝั่ง server เท่านั้น (env, db, storage, sessions, services)
+  server/           โค้ดฝั่ง server เท่านั้น (env, db, storage, auth, sessions, services)
+  proxy.ts          กันหน้า /dashboard ให้ redirect ไป /login เมื่อไม่มี session
 scripts/setup.ts    สร้าง index, bucket/CORS และ seed (ใช้ได้ทุก environment)
 Dockerfile          Image สำหรับ Cloud Run (standalone output, port 8080)
 ```

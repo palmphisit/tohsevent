@@ -22,7 +22,7 @@ import {
   PutBucketPolicyCommand,
 } from "@aws-sdk/client-s3";
 import { ObjectId } from "mongodb";
-import { collections, ensureIndexes, getMongoClient } from "../src/server/db";
+import { collections, ensureIndexes, mongoClient } from "../src/server/db";
 import { env } from "../src/server/env";
 import type { EventDoc } from "../src/server/models";
 import { hashPassword } from "../src/server/password";
@@ -115,7 +115,7 @@ async function main() {
 
 main()
   .then(async () => {
-    await (await getMongoClient()).close();
+    await mongoClient().close();
   })
   .catch((error) => {
     console.error(error);

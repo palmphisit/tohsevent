@@ -11,6 +11,7 @@ const schema = z.object({
   R2_BUCKET: z.string().min(1),
   R2_PUBLIC_BASE_URL: z.url().transform((url) => url.replace(/\/+$/, "")),
   SESSION_SECRET: z.string().min(32),
+  AUTH_SECRET: z.string().min(32),
 });
 
 export type Env = z.infer<typeof schema>;
