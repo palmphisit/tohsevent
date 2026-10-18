@@ -68,7 +68,7 @@ export function GuestApp({ event, initialSession }: { event: PublicEvent; initia
               className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-zinc-900"
             />
           )}
-          <Uploader target={uploadTarget} onUploaded={onUploaded} />
+          <Uploader target={uploadTarget} onUploaded={onUploaded} persistKey={`guest:${event.slug}`} />
         </section>
       ) : (
         <p className="mt-6 rounded-xl bg-zinc-100 px-4 py-3 text-sm text-zinc-600">ปิดรับการอัปโหลดรูปสำหรับงานนี้แล้ว</p>

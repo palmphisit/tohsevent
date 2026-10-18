@@ -49,6 +49,7 @@ printf '%s' 'mongodb+srv://...' | gcloud secrets create mongodb-uri --data-file=
 printf '%s' '<R2 secret>'       | gcloud secrets create r2-secret-access-key --data-file=-
 openssl rand -base64 48 | tr -d '\n' | gcloud secrets create session-secret --data-file=-
 openssl rand -base64 48 | tr -d '\n' | gcloud secrets create auth-secret --data-file=-
+openssl rand -base64 48 | tr -d '\n' | gcloud secrets create cron-secret --data-file=-
 ```
 
 ให้ service account ของ Cloud Run อ่าน secrets ได้ (`roles/secretmanager.secretAccessor`)
@@ -78,16 +79,60 @@ gcloud run deploy tohsevent \
   --concurrency 80 \
   --min-instances 0 --max-instances 10 \
   --set-env-vars "APP_ORIGIN=https://tohsevent.com,MONGODB_DB=tohsevent,R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com,R2_ACCESS_KEY_ID=<KEY_ID>,R2_BUCKET=tohsevent-prod,R2_PUBLIC_BASE_URL=https://media.tohsevent.com" \
-  --set-secrets "MONGODB_URI=mongodb-uri:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,SESSION_SECRET=session-secret:latest,AUTH_SECRET=auth-secret:latest"
+  --set-secrets "MONGODB_URI=mongodb-uri:latest,R2_SECRET_ACCESS_KEY=r2-secret-access-key:latest,SESSION_SECRET=session-secret:latest,AUTH_SECRET=auth-secret:latest,CRON_SECRET=cron-secret:latest"
 ```
 
 - **วันจัดงานจริง**: ตั้ง `--min-instances 1` ไว้ก่อนงานเริ่ม จะได้ไม่เจอ cold start ตอนแขกสแกน QR พร้อมกัน
 - Health check: `GET /api/healthz` จะ ping MongoDB (ใช้เป็น startup/liveness probe ได้)
 - Custom domain: ใช้ Cloud Run domain mapping หรือ Cloudflare proxy ชี้มาที่ service
 
+## 6. งานรายวัน (Cloud Scheduler)
+
+`POST /api/internal/cleanup` ทำ 2 อย่าง:
+- ลบรูปที่จองอัปโหลดไว้แต่ไม่เสร็จเกิน 24 ชม. (ทั้ง record และไฟล์) และคืนโควตาให้แขก
+- เปลี่ยนสถานะงานที่เลย `expiresAt` เป็น `expired`
+
+endpoint นี้ต้องได้ header `Authorization: Bearer <CRON_SECRET>` ถ้าไม่ได้ตั้ง `CRON_SECRET` จะตอบ 503
+
+```bash
+gcloud services enable cloudscheduler.googleapis.com
+gcloud scheduler jobs create http tohsevent-daily-cleanup \
+  --location asia-southeast1 \
+  --schedule "0 4 * * *" --time-zone "Asia/Bangkok" \
+  --uri "https://<SERVICE_URL>/api/internal/cleanup" \
+  --http-method POST \
+  --attempt-deadline 300s \
+  --headers "Authorization=Bearer $(gcloud secrets versions access latest --secret=cron-secret)"
+```
+
+ทดสอบทันทีโดยไม่ต้องรอเวลา:
+
+```bash
+gcloud scheduler jobs run tohsevent-daily-cleanup --location asia-southeast1
+```
+
+ค่า header จะถูกเก็บไว้ใน config ของ job (คนที่มีสิทธิ์ดู job ใน project จะเห็น) ถ้าเปลี่ยน `cron-secret`
+ต้องอัปเดต job ด้วย `gcloud scheduler jobs update http ... --update-headers`
+
+## 7. Load test ก่อนจัดงานจริง
+
+สคริปต์ k6 อยู่ที่ `scripts/load/guest-upload.js` จำลองแขกเข้างานแล้วอัปโหลดพร้อมกัน (ค่าเริ่มต้น 200 คน คนละ 3 รูป)
+ใช้ Docker รันได้โดยไม่ต้องติดตั้ง k6 **ทุกการอัปโหลดสร้างรูปและไฟล์จริง** ให้ยิงเฉพาะ environment ที่ใช้ทดสอบ
+และใช้งานที่สร้างไว้สำหรับทดสอบโดยเฉพาะ
+
+```bash
+docker run --rm -i -e BASE_URL=https://<SERVICE_URL> -e SLUG=<test-event-slug> grafana/k6:1.3.0 run - < scripts/load/guest-upload.js
+```
+
+ผลบนเครื่อง local (production build + Mongo/RustFS ใน Docker, 18 ต.ค. 2026): แขก 200 คนพร้อมกัน, อัปโหลด ~7,500 รูป,
+error 0%, API p95 79 ms ค่าบน Cloud Run + Atlas + R2 จะต่างออกไป ควรรันซ้ำก่อนงานจริง โดยเฉพาะถ้า Atlas เป็น tier ฟรี/Flex
+ซึ่งจำกัดจำนวน connection และ ops/s
+
 ## Checklist ก่อนเปิดใช้งาน
 
 - [ ] `APP_ORIGIN` ตรงกับโดเมนจริง และอยู่ใน CORS ของ R2
 - [ ] `SESSION_SECRET` และ `AUTH_SECRET` สุ่มใหม่ ไม่ใช้ค่า dev และไม่ซ้ำกัน
 - [ ] รัน `scripts/setup.ts` กับ production แล้ว (index ครบ)
+- [ ] ตั้ง Cloud Scheduler สำหรับ cleanup และทดสอบรันแล้ว
+- [ ] รัน load test กับ environment จริงแล้ว และตั้ง `--min-instances 1` ช่วงวันงาน
 - [ ] ทดสอบอัปโหลดจากมือถือจริง (iOS Safari + Android Chrome) ผ่าน 4G

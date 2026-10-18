@@ -12,6 +12,8 @@ const schema = z.object({
   R2_PUBLIC_BASE_URL: z.url().transform((url) => url.replace(/\/+$/, "")),
   SESSION_SECRET: z.string().min(32),
   AUTH_SECRET: z.string().min(32),
+  /** Shared secret Cloud Scheduler sends to /api/internal/*. Internal jobs are disabled when unset. */
+  CRON_SECRET: z.string().min(32).optional(),
 });
 
 export type Env = z.infer<typeof schema>;

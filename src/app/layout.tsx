@@ -10,6 +10,7 @@ const notoSansThai = Noto_Sans_Thai({
 export const metadata: Metadata = {
   title: "Tohs Event",
   description: "แชร์รูปในงานอีเวนต์ด้วย QR Code — ไม่ต้องโหลดแอป ไม่ต้องสมัครสมาชิก",
+  appleWebApp: { capable: true, title: "Tohs Event", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

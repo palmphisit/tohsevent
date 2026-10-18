@@ -140,7 +140,12 @@ function ModerationGrid({
     <div className="mt-4">
       {view === "official" && (
         <div className="mb-4">
-          <Uploader target={uploadTarget} onUploaded={onUploaded} label="อัปโหลดรูป Official" />
+          <Uploader
+            target={uploadTarget}
+            onUploaded={onUploaded}
+            persistKey={`official:${eventId}`}
+            label="อัปโหลดรูป Official"
+          />
           <p className="mt-2 text-xs text-zinc-500">
             รูปจะถูกย่อเป็นความละเอียด 2560px ก่อนอัปโหลด การอัปโหลดไฟล์ต้นฉบับความละเอียดสูงจะมาพร้อมแอปสำหรับช่างภาพ
           </p>

@@ -29,7 +29,8 @@ export async function setGuestCookie(res: NextResponse, claims: GuestClaims): Pr
 
   res.cookies.set(guestCookieName(claims.eventId), token, {
     httpOnly: true,
-    secure: env().NODE_ENV === "production",
+    // Secure whenever the app is served over HTTPS (production), not tied to NODE_ENV.
+    secure: env().APP_ORIGIN.startsWith("https://"),
     sameSite: "lax",
     path: "/",
     maxAge: MAX_AGE_SECONDS,

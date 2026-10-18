@@ -34,6 +34,9 @@ pnpm dev
 3. เบราว์เซอร์ `PUT` ทั้งสองไฟล์ตรงเข้า R2
 4. `POST /api/v1/events/:slug/photos/:id/complete` ตรวจ object ใน R2 ด้วย `HEAD` แล้วเปลี่ยนเป็น `ready`
 
+ไฟล์ที่ยังอัปโหลดไม่เสร็จถูกเก็บไว้ใน IndexedDB ของเบราว์เซอร์ ถ้าแขกปิดแท็บกลางคัน (iOS ไม่มี Background Sync)
+รูปที่เหลือจะอัปโหลดต่อเองเมื่อเปิดหน้างานอีกครั้ง ส่วนการจองที่ค้างเกิน 24 ชม. จะถูกล้างโดย `/api/internal/cleanup`
+
 ## API (v1)
 
 | Method | Path | Description |
@@ -45,6 +48,7 @@ pnpm dev
 | POST | `/api/v1/events/:slug/uploads` | ขอ presigned upload URL (สูงสุด 10 ไฟล์ต่อครั้ง) |
 | POST | `/api/v1/events/:slug/photos/:photoId/complete` | ยืนยันว่าอัปโหลดเสร็จแล้ว |
 | POST | `/api/v1/events/:slug/photos/:photoId/report` | แขกรายงาน / ขอลบรูป (`inappropriate`, `remove_me`, `other`) |
+| POST | `/api/internal/cleanup` | งานรายวันสำหรับ Cloud Scheduler (ต้องส่ง `Authorization: Bearer <CRON_SECRET>`) |
 | * | `/api/auth/*` | บัญชีเจ้าภาพ (Better Auth): `sign-up/email`, `sign-in/email`, `sign-out`, `get-session` |
 | GET / POST | `/api/v1/host/events` | รายการงานของฉัน / สร้างงาน (ต้อง login) |
 | GET / PATCH | `/api/v1/host/events/:id` | ดู / แก้ไขงาน (เฉพาะเจ้าของ) |
@@ -66,5 +70,6 @@ src/
   server/           โค้ดฝั่ง server เท่านั้น (env, db, storage, auth, sessions, services)
   proxy.ts          กันหน้า /dashboard ให้ redirect ไป /login เมื่อไม่มี session
 scripts/setup.ts    สร้าง index, bucket/CORS และ seed (ใช้ได้ทุก environment)
+scripts/load/       k6 load test (แขกอัปโหลดพร้อมกัน) ดูวิธีรันใน docs/DEPLOY.md
 Dockerfile          Image สำหรับ Cloud Run (standalone output, port 8080)
 ```

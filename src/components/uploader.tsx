@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, putToStorage, type PublicPhoto } from "@/lib/api-client";
 import { prepareImage, type PreparedImage } from "@/lib/image";
+import { listPending, removePending, savePending } from "@/lib/upload-store";
 import type { PresignedUpload } from "@/server/services/photos";
 
 const CONCURRENCY = 2;
@@ -13,7 +14,7 @@ type Status = "queued" | "processing" | "uploading" | "done" | "error";
 
 interface QueueItem {
   id: string;
-  file: File;
+  file: Blob;
   status: Status;
   error?: string;
   previewUrl?: string;
@@ -27,6 +28,16 @@ function errorMessage(error: unknown): string {
     if (error.code === "uploads_disabled") return "งานนี้ปิดรับรูปแล้ว";
   }
   return "อัปโหลดไม่สำเร็จ";
+}
+
+/** Errors that retrying will not fix; such files are dropped from the resume store. */
+function isPermanent(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === "quota_exceeded" || error.code === "uploads_disabled");
+}
+
+function persistFiles(scope: string, entries: { id: string; file: File }[]) {
+  const addedAt = Date.now();
+  entries.forEach((e, i) => void savePending({ id: e.id, scope, file: e.file, name: e.file.name, addedAt: addedAt + i }));
 }
 
 /** Endpoints for one upload target (guest page or host dashboard); the flow is the same. */
@@ -63,14 +74,18 @@ async function uploadItem(target: UploadTarget, item: QueueItem, update: (patch:
 export function Uploader({
   target,
   onUploaded,
+  persistKey,
   label = "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด",
 }: {
   target: UploadTarget;
   onUploaded: (photo: PublicPhoto) => void;
+  /** When set, unfinished files survive a closed tab and resume on the next visit. */
+  persistKey?: string;
   label?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<QueueItem[]>([]);
+  const [restoredCount, setRestoredCount] = useState(0);
   const itemsRef = useRef(new Map<string, QueueItem>());
   const queueRef = useRef<string[]>([]);
   const activeRef = useRef(0);
@@ -108,10 +123,12 @@ export function Uploader({
       await target.prepare?.();
       const photo = await uploadItem(target, itemsRef.current.get(id)!, (patch) => update(id, patch));
       update(id, { status: "done", image: undefined, reservation: undefined });
+      void removePending(id);
       callbacks.current.onUploaded(photo);
     } catch (error) {
       console.error("upload failed", error);
       update(id, { status: "error", error: errorMessage(error) });
+      if (isPermanent(error)) void removePending(id);
     }
   }
 
@@ -131,16 +148,49 @@ export function Uploader({
     pump();
   }
 
-  function onFiles(files: FileList | null) {
-    if (!files?.length) return;
-    const ids = Array.from(files).map((file) => {
-      const id = crypto.randomUUID();
-      itemsRef.current.set(id, { id, file, status: "queued" });
-      return id;
-    });
+  function addItems(entries: { id: string; file: Blob }[]) {
+    const ids = entries
+      .filter((entry) => !itemsRef.current.has(entry.id))
+      .map(({ id, file }) => {
+        itemsRef.current.set(id, { id, file, status: "queued" });
+        return id;
+      });
     setItems(Array.from(itemsRef.current.values()));
     enqueue(ids);
+  }
+
+  // Resume files left over from a previous visit (tab closed mid-upload).
+  const restoreRef = useRef(addItems);
+  useEffect(() => {
+    restoreRef.current = addItems;
+  });
+  useEffect(() => {
+    if (!persistKey) return;
+    let cancelled = false;
+    listPending(persistKey).then((pending) => {
+      if (cancelled || pending.length === 0) return;
+      setRestoredCount(pending.length);
+      restoreRef.current(pending);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [persistKey]);
+
+  function onFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const entries = Array.from(files).map((file) => ({ id: crypto.randomUUID(), file }));
+    if (persistKey) persistFiles(persistKey, entries);
+    addItems(entries);
     if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function discard(id: string) {
+    const item = itemsRef.current.get(id);
+    if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    itemsRef.current.delete(id);
+    setItems(Array.from(itemsRef.current.values()));
+    void removePending(id);
   }
 
   function retry(id: string) {
@@ -170,6 +220,9 @@ export function Uploader({
 
       {items.length > 0 && (
         <div className="mt-3 rounded-xl border border-zinc-200 p-3">
+          {restoredCount > 0 && (
+            <p className="mb-1 text-sm text-zinc-600">กำลังอัปโหลดต่อ {restoredCount} รูปที่ค้างจากครั้งก่อน</p>
+          )}
           <p className="text-sm text-zinc-600">
             อัปโหลดแล้ว {doneCount}/{items.length} รูป
             {inFlight && <span className="text-zinc-400"> · อย่าเพิ่งปิดหน้านี้</span>}
@@ -184,9 +237,19 @@ export function Uploader({
                   )}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 p-1 text-center text-xs text-white">
                     {item.status === "error" ? (
-                      <button type="button" onClick={() => retry(item.id)} className="underline">
-                        {item.error} · ลองใหม่
-                      </button>
+                      <>
+                        <button type="button" onClick={() => retry(item.id)} className="underline">
+                          {item.error} · ลองใหม่
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => discard(item.id)}
+                          aria-label="เอาออกจากคิว"
+                          className="absolute top-0.5 right-1 px-1 text-sm"
+                        >
+                          ✕
+                        </button>
+                      </>
                     ) : item.status === "queued" ? (
                       "รอคิว"
                     ) : item.status === "processing" ? (
