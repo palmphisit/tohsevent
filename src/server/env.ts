@@ -31,6 +31,8 @@ const schema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
   /** "vision" = hide photos Google Cloud Vision SafeSearch flags until the host reviews them. */
   AUTO_MODERATION: z.enum(["off", "vision"]).default("off"),
+  /** ffmpeg binary used to cut video poster frames (installed in the Docker image). */
+  FFMPEG_PATH: z.string().default("ffmpeg"),
   /** Resend API key (re_...). Email features (guest notifications, expiry reminders) are hidden when unset. */
   RESEND_API_KEY: z.string().startsWith("re_").optional(),
   EMAIL_FROM: z.string().default("Tohs Event <noreply@tohsevent.com>"),

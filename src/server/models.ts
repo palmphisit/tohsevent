@@ -148,7 +148,17 @@ export interface PhotoDoc {
   bytes: Record<RequiredVariant, number> & { watermarked?: number; video?: number };
   /** "video": display/thumb are poster frames and `keys.video` holds the clip. Missing = photo. */
   kind?: "photo" | "video";
-  video?: { contentType: VideoContentType; durationSec: number; posterFallback?: boolean };
+  video?: {
+    contentType: VideoContentType;
+    durationSec: number;
+    /** The browser could not draw a frame, so display/thumb are a placeholder. */
+    posterFallback?: boolean;
+    /** The uploader's browser could not read the length; measured on the server at completion. */
+    durationPending?: boolean;
+    /** Server-side frame grab (ffmpeg): done, in progress, or not possible for this clip. */
+    poster?: "server" | "pending" | "failed";
+    posterClaimedAt?: Date;
+  };
   width: number;
   height: number;
   takenAt: Date | null;

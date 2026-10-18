@@ -73,6 +73,13 @@ export async function getObjectStream(key: string): Promise<ReadableStream<Uint8
   return res.Body.transformToWebStream() as ReadableStream<Uint8Array>;
 }
 
+/** Server-side upload of a small object (e.g. poster frames cut on the server). */
+export async function putObject(key: string, body: Uint8Array, contentType: string): Promise<void> {
+  await s3().send(
+    new PutObjectCommand({ Bucket: env().R2_BUCKET, Key: key, Body: body, ContentType: contentType, ContentLength: body.length }),
+  );
+}
+
 export function publicUrl(key: string): string {
   return `${env().R2_PUBLIC_BASE_URL}/${key}`;
 }

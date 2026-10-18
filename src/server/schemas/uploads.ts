@@ -16,7 +16,8 @@ const fileSchema = z.object({
     .object({
       contentType: z.enum(VIDEO_CONTENT_TYPES),
       bytes: z.number().int().positive().max(UPLOAD_LIMITS.maxBytes.video),
-      durationSec: z.number().positive().max(60 * 60),
+      /** Missing when the browser could not read the clip; the server measures it on completion. */
+      durationSec: z.number().positive().max(60 * 60).optional(),
       /** The browser could not draw a frame, so the poster is a placeholder. */
       posterFallback: z.literal(true).optional(),
     })

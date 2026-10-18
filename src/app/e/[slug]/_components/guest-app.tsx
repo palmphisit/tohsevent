@@ -48,10 +48,13 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
   const pendingPick = useRef<(() => void) | null>(null);
   const consentWaiter = useRef<((accepted: boolean) => void) | null>(null);
 
+  // Several uploads may ask at once: they all wait on the same answer.
+  const consentAnswer = useRef<Promise<boolean> | null>(null);
   const askConsent = useCallback(() => {
     if (consentGiven.current) return Promise.resolve(true);
     setConsentOpen(true);
-    return new Promise<boolean>((resolve) => (consentWaiter.current = resolve));
+    consentAnswer.current ??= new Promise<boolean>((resolve) => (consentWaiter.current = resolve));
+    return consentAnswer.current;
   }, []);
 
   function answerConsent(accepted: boolean) {
@@ -61,6 +64,7 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
     pendingPick.current = null;
     consentWaiter.current?.(accepted);
     consentWaiter.current = null;
+    consentAnswer.current = null;
   }
 
   const uploadGate = useCallback(

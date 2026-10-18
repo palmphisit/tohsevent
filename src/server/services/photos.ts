@@ -12,8 +12,10 @@ import {
   type VideoContentType,
 } from "../models";
 import { checkImage } from "../safe-search";
-import { headObject, presignPut, publicUrl } from "../storage";
+import { deleteObjects, headObject, presignPut, publicUrl } from "../storage";
+import { probeDuration } from "../video-poster";
 import { incrementEventCounter } from "./events";
+import { ensureServerPoster, repairListedPosters } from "./video-posters";
 
 const EXTENSIONS: Record<UploadContentType, string> = { "image/jpeg": "jpg", "image/webp": "webp" };
 
@@ -24,7 +26,7 @@ export interface UploadRequestFile {
   height: number;
   takenAt?: string;
   /** Video item: the clip itself; display/thumb are its poster frames. */
-  video?: { contentType: VideoContentType; bytes: number; durationSec: number; posterFallback?: true };
+  video?: { contentType: VideoContentType; bytes: number; durationSec?: number; posterFallback?: true };
 }
 
 const VIDEO_EXTENSIONS: Record<VideoContentType, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" };
@@ -95,7 +97,7 @@ function assertFilesAllowed(event: EventDoc, files: UploadRequestFile[]): void {
     if (!file.video) continue;
     if (!videoLimits) throw new HttpError(403, "video_not_allowed", "This event's plan does not include videos");
     if (file.video.bytes > videoLimits.maxBytes) throw new HttpError(413, "video_too_large", "The video file is too large");
-    if (file.video.durationSec > videoLimits.maxDurationSec + 1) {
+    if (file.video.durationSec !== undefined && file.video.durationSec > videoLimits.maxDurationSec + 1) {
       throw new HttpError(400, "video_too_long", "The video is longer than this plan allows");
     }
   }
@@ -145,8 +147,9 @@ async function createPendingPhotos(
       doc.kind = "video";
       doc.video = {
         contentType: clip.contentType,
-        durationSec: clip.durationSec,
+        durationSec: clip.durationSec ?? 0,
         ...(clip.posterFallback ? { posterFallback: true } : {}),
+        ...(clip.durationSec === undefined ? { durationPending: true } : {}),
       };
       doc.keys.video = `events/${event._id.toHexString()}/photos/${folder}/video.${VIDEO_EXTENSIONS[clip.contentType]}`;
       doc.bytes.video = clip.bytes;
@@ -220,6 +223,44 @@ export async function createOfficialUploads(
   return createPendingPhotos(event, "official", { type: "user", id: host.id, displayName: host.name }, files);
 }
 
+/** Removes a pending upload that will never complete, giving its quota back. */
+async function discardPendingUpload(photo: PhotoDoc): Promise<void> {
+  const { photos, guestSessions } = await collections();
+  await deleteObjects(Object.values(photo.keys).filter((key): key is string => !!key));
+  const removed = await photos.deleteOne({ _id: photo._id, status: "pending" });
+  if (!removed.deletedCount) return;
+  await releasePhotoQuota(photo.eventId, 1);
+  if (photo.uploader.type === "guest") {
+    await guestSessions.updateOne({ _id: photo.uploader.id, uploadCount: { $gt: 0 } }, { $inc: { uploadCount: -1 } });
+  }
+}
+
+/**
+ * Clips the uploader's browser could not open (e.g. HEVC on Chrome) arrive without a length:
+ * measure it with ffmpeg and enforce the plan limit now, dropping the upload if it fails.
+ */
+async function measureVideo(event: EventDoc, photo: PhotoDoc): Promise<void> {
+  const limits = planOf(event).video;
+  const durationSec = limits && photo.keys.video ? await probeDuration(publicUrl(photo.keys.video)) : null;
+  const rejection: [number, string, string] | null = !limits
+    ? [403, "video_not_allowed", "This event's plan does not include videos"]
+    : durationSec === null
+      ? [422, "video_unsupported", "The video file could not be read"]
+      : durationSec > limits.maxDurationSec + 1
+        ? [400, "video_too_long", "The video is longer than this plan allows"]
+        : null;
+  if (rejection) {
+    await discardPendingUpload(photo);
+    throw new HttpError(...rejection);
+  }
+  const { photos } = await collections();
+  await photos.updateOne(
+    { _id: photo._id },
+    { $set: { "video.durationSec": durationSec! }, $unset: { "video.durationPending": "" } },
+  );
+  photo.video = { ...photo.video!, durationSec: durationSec!, durationPending: undefined };
+}
+
 /**
  * Step 3: verify both objects really exist in R2 with the declared size/type,
  * then flip the photo to `ready`. Only the original uploader may complete it.
@@ -241,8 +282,13 @@ export async function completeUpload(event: EventDoc, uploaderId: ObjectId, phot
     }
   });
 
+  if (photo.video?.durationPending) await measureVideo(event, photo);
+
+  // Videos: swap the browser-made poster for a frame cut on the server (keeps it on failure).
+  const posterKeys = photo.kind === "video" ? ((await ensureServerPoster(photo._id))?.keys ?? photo.keys) : photo.keys;
+
   // AI pre-moderation (when enabled): flagged photos start hidden for the host to review.
-  const verdict = await checkImage(publicUrl(photo.keys.thumb));
+  const verdict = await checkImage(publicUrl(posterKeys.thumb));
   const updated = await photos.findOneAndUpdate(
     { _id: photo._id, status: "pending" },
     {
@@ -326,7 +372,7 @@ export async function listEventPhotos(
     .limit(options.limit + 1)
     .toArray();
   const hasMore = docs.length > options.limit;
-  const page = hasMore ? docs.slice(0, options.limit) : docs;
+  const page = await repairListedPosters(hasMore ? docs.slice(0, options.limit) : docs);
   return {
     items: page.map((photo) => toPublicPhoto(photo, event, { viewerId: options.viewerId })),
     nextCursor: hasMore ? page[page.length - 1]._id.toHexString() : null,

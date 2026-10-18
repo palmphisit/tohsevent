@@ -6,6 +6,7 @@ import { brandingKeys } from "./branding";
 import { sendExpiryReminders } from "./notifications";
 import { removeOriginal } from "./originals";
 import { releasePhotoQuota } from "./photos";
+import { backfillVideoPosters } from "./video-posters";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STALE_PENDING_MS = DAY_MS;
@@ -20,6 +21,7 @@ export interface CleanupResult {
   photosPurged: number;
   albumsPurged: number;
   expiryRemindersSent: number;
+  videoPostersCut: number;
 }
 
 /**
@@ -28,6 +30,7 @@ export interface CleanupResult {
  *   give the guest their quota back and drop the record
  * - events past `expiresAt`: stop serving them to guests
  * - albums expired for longer than the grace period: delete their files for good
+ * - videos still showing a browser-made poster: cut a real frame on the server
  */
 export async function runDailyCleanup(now = new Date()): Promise<CleanupResult> {
   const { events, guestSessions, photos } = await collections();
@@ -60,7 +63,11 @@ export async function runDailyCleanup(now = new Date()): Promise<CleanupResult> 
     console.error("expiry reminders failed", error);
     return 0;
   });
-  return { stalePhotosRemoved: stale.length, eventsExpired: expired.modifiedCount, ...purged, expiryRemindersSent };
+  const videoPostersCut = await backfillVideoPosters().catch((error) => {
+    console.error("video poster backfill failed", error);
+    return 0;
+  });
+  return { stalePhotosRemoved: stale.length, eventsExpired: expired.modifiedCount, ...purged, expiryRemindersSent, videoPostersCut };
 }
 
 async function purgeExpiredAlbums(now: Date): Promise<{ photosPurged: number; albumsPurged: number }> {

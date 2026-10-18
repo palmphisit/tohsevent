@@ -6,6 +6,7 @@ import { deleteObjects } from "../storage";
 import { incrementEventCounter } from "./events";
 import { removeOriginal } from "./originals";
 import { releasePhotoQuota, toPublicPhoto, type PublicPhoto } from "./photos";
+import { repairListedPosters } from "./video-posters";
 
 // Host-side moderation (hide / delete / review reports) and guest reports.
 // `counters.photos` tracks photos guests can see, so it moves with visibility.
@@ -77,7 +78,7 @@ export async function listHostPhotos(
     .limit(options.limit + 1)
     .toArray();
   const hasMore = docs.length > options.limit;
-  const page = hasMore ? docs.slice(0, options.limit) : docs;
+  const page = await repairListedPosters(hasMore ? docs.slice(0, options.limit) : docs);
   const reportsByPhoto = await openReportsFor(page.filter((p) => (p.openReports ?? 0) > 0).map((p) => p._id));
   return {
     items: page.map((photo) => toHostPhoto(photo, event, reportsByPhoto.get(photo._id.toHexString()))),

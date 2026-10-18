@@ -4,6 +4,7 @@ import { collections } from "../db";
 import { env } from "../env";
 import type { EventDoc, PhotoDoc, SlideshowDoc } from "../models";
 import { toPublicPhoto, type PublicPhoto } from "./photos";
+import { repairListedPosters } from "./video-posters";
 
 // Big-screen slideshow for the venue (TV / projector): photos flow in as guests upload,
 // next to a QR code and event details the host can customize. Public events are open to
@@ -77,5 +78,5 @@ export async function listSlideshowPhotos(
     photos.find(filter).sort({ _id: -1 }).limit(options.limit).toArray(),
     photos.countDocuments(filter),
   ]);
-  return { items: docs.map((doc) => toPublicPhoto(doc, event)), total };
+  return { items: (await repairListedPosters(docs)).map((doc) => toPublicPhoto(doc, event)), total };
 }

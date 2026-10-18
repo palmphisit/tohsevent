@@ -128,6 +128,28 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
   );
 }
 
+/**
+ * Thumbnail in the strip / wall. Videos show their poster frame; when only a placeholder
+ * poster exists, the browser draws the clip's own frame instead (no download of the whole clip).
+ */
+function TileMedia({ photo }: { photo: PublicPhoto }) {
+  return (
+    <>
+      {photo.kind === "video" && photo.posterFallback && photo.videoUrl ? (
+        <video src={`${photo.videoUrl}#t=0.5`} preload="metadata" muted playsInline />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN
+        <img src={photo.thumbUrl} alt="" loading="lazy" />
+      )}
+      {photo.kind === "video" && (
+        <span className="ss-play-badge">
+          ▶{photo.durationSec !== undefined && ` ${formatDuration(photo.durationSec)}`}
+        </span>
+      )}
+    </>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Spotlight: one big photo at a time (crossfade + slow zoom), new uploads jump the queue,
 // and a strip of recent photos flows underneath.
@@ -241,9 +263,7 @@ function Spotlight({
           <div className="ss-strip-track">
             {[...strip, ...strip].map((photo, i) => (
               <div key={`${photo.id}-${i}`} className="ss-strip-tile" data-current={photo.id === current?.photo.id}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
-                <img src={photo.thumbUrl} alt="" loading="lazy" />
-                {photo.kind === "video" && <span className="ss-play-badge">▶</span>}
+                <TileMedia photo={photo} />
               </div>
             ))}
           </div>
@@ -417,9 +437,7 @@ function Wall({
                 className="ss-wall-tile"
                 style={{ aspectRatio: `${photo.width} / ${photo.height}` }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
-                <img src={photo.thumbUrl} alt="" loading="lazy" />
-                {photo.kind === "video" && <span className="ss-play-badge">▶</span>}
+                <TileMedia photo={photo} />
               </div>
             ))}
           </div>
@@ -429,7 +447,14 @@ function Wall({
         <div className="ss-popup">
           <div className="ss-popup-card">
             {popup.kind === "video" && popup.videoUrl ? (
-              <video src={popup.videoUrl} autoPlay muted playsInline onEnded={() => setPopup(null)} />
+              <video
+                src={popup.videoUrl}
+                poster={popup.posterFallback ? undefined : popup.displayUrl}
+                autoPlay
+                muted
+                playsInline
+                onEnded={() => setPopup(null)}
+              />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN
               <img src={popup.displayUrl} alt="" />

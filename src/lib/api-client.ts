@@ -71,7 +71,7 @@ function uploadBody(image: PreparedImage): string {
               video: {
                 contentType: image.video.contentType,
                 bytes: image.video.blob.size,
-                durationSec: Math.round(image.video.durationSec * 10) / 10,
+                ...(image.video.durationSec ? { durationSec: Math.round(image.video.durationSec * 10) / 10 } : {}),
                 ...(image.video.posterFallback ? { posterFallback: true } : {}),
               },
             }

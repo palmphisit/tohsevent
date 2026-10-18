@@ -155,25 +155,26 @@ export async function prepareVideo(file: Blob, limits: VideoLimits | null): Prom
   document.body.appendChild(video);
   video.src = url;
   try {
-    try {
-      await once(video, "loadedmetadata", 15_000);
-    } catch {
-      throw new VideoRejected("video_unsupported");
-    }
-    let durationSec = video.duration;
-    if (!Number.isFinite(durationSec)) {
+    // Browsers without the clip's codec (HEVC on Chrome, H.264 in some builds) cannot even read
+    // its length: upload it anyway and let the server measure it and cut the poster.
+    const readable = await once(video, "loadedmetadata", 15_000).then(
+      () => true,
+      () => false,
+    );
+    let durationSec = readable ? video.duration : NaN;
+    if (readable && !Number.isFinite(durationSec)) {
       // Some WebM recordings report Infinity until the end has been seen.
       video.currentTime = 1e7;
       await once(video, "seeked", 15_000).catch(() => {});
       durationSec = video.duration;
       video.currentTime = 0;
     }
-    if (!Number.isFinite(durationSec) || durationSec <= 0) throw new VideoRejected("video_unsupported");
-    if (durationSec > limits.maxDurationSec + 1) throw new VideoRejected("video_too_long");
+    const known = Number.isFinite(durationSec) && durationSec > 0;
+    if (known && durationSec > limits.maxDurationSec + 1) throw new VideoRejected("video_too_long");
 
-    // No decodable frame here (e.g. HEVC on desktop Chrome): keep the clip with a placeholder
-    // poster; galleries then let the viewer's browser draw the frame itself.
-    const frame = await grabFrame(video, durationSec);
+    // No decodable frame here: keep the clip with a placeholder poster; the server replaces it
+    // with a real frame when the upload completes.
+    const frame = known ? await grabFrame(video, durationSec) : null;
     const poster = frame ?? placeholderPoster(1280, 720);
 
     const thumbSize = fit(poster.width, poster.height, IMAGE_VARIANTS.thumb.maxEdge);
@@ -190,7 +191,12 @@ export async function prepareVideo(file: Blob, limits: VideoLimits | null): Prom
       thumb,
       width,
       height,
-      video: { blob: file, contentType, durationSec, ...(frame ? {} : { posterFallback: true }) },
+      video: {
+        blob: file,
+        contentType,
+        ...(known ? { durationSec } : {}),
+        ...(frame ? {} : { posterFallback: true }),
+      },
     };
   } finally {
     video.pause();

@@ -172,7 +172,9 @@
   outline-offset: -0.5cqmin;
 }
 .ss-strip-tile img,
-.ss-wall-tile img {
+.ss-strip-tile video,
+.ss-wall-tile img,
+.ss-wall-tile video {
   width: 100%;
   height: 100%;
   object-fit: cover;
