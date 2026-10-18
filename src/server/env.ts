@@ -3,6 +3,15 @@ import { z } from "zod";
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_ORIGIN: z.url(),
+  /**
+   * Other origins that serve the same app (comma-separated), e.g. the run.app URL while
+   * moving to a custom domain. Sign-in from them is accepted; links and QR codes use APP_ORIGIN.
+   */
+  EXTRA_ORIGINS: z
+    .string()
+    .default("")
+    .transform((v) => v.split(",").map((o) => o.trim().replace(/\/+$/, "")).filter(Boolean))
+    .pipe(z.array(z.url())),
   MONGODB_URI: z.string().min(1),
   MONGODB_DB: z.string().min(1),
   R2_ENDPOINT: z.url(),

@@ -15,7 +15,7 @@ function createAuth() {
     appName: "Tohs Event",
     baseURL: e.APP_ORIGIN,
     secret: e.AUTH_SECRET,
-    trustedOrigins: [e.APP_ORIGIN],
+    trustedOrigins: [e.APP_ORIGIN, ...e.EXTRA_ORIGINS],
     database: mongodbAdapter(database(), { client: mongoClient() }),
     emailAndPassword: { enabled: true, minPasswordLength: 8, autoSignIn: true },
     session: {
