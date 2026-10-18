@@ -10,6 +10,7 @@ import {
   type PhotoVariant,
   type UploadContentType,
 } from "../models";
+import { checkImage } from "../safe-search";
 import { headObject, presignPut, publicUrl } from "../storage";
 import { incrementEventCounter } from "./events";
 
@@ -34,8 +35,13 @@ export interface PresignedUpload {
   uploads: { display: UploadTarget; thumb: UploadTarget; watermarked?: UploadTarget };
 }
 
-function photoKey(eventId: ObjectId, photoId: ObjectId, name: string, contentType: UploadContentType) {
-  return `events/${eventId.toHexString()}/photos/${photoId.toHexString()}/${name}.${EXTENSIONS[contentType]}`;
+/**
+ * Photo folders carry a random token next to the id. ObjectIds are close to sequential,
+ * so without it anyone holding one photo URL of a password-protected event could guess
+ * the URLs of the others on the public CDN.
+ */
+function photoKey(eventId: ObjectId, folder: string, name: string, contentType: UploadContentType) {
+  return `events/${eventId.toHexString()}/photos/${folder}/${name}.${EXTENSIONS[contentType]}`;
 }
 
 /** Variants a photo was uploaded with (always display + thumb, plus watermarked on Free events). */
@@ -85,7 +91,8 @@ async function createPendingPhotos(
   const now = new Date();
   const docs: PhotoDoc[] = files.map((file) => {
     const _id = new ObjectId();
-    const key = (name: string) => photoKey(event._id, _id, name, file.contentType);
+    const folder = `${_id.toHexString()}-${randomBytes(8).toString("hex")}`;
+    const key = (name: string) => photoKey(event._id, folder, name, file.contentType);
     return {
       _id,
       eventId: event._id,
@@ -178,7 +185,7 @@ export async function completeUpload(event: EventDoc, uploaderId: ObjectId, phot
   const { photos } = await collections();
   const photo = await photos.findOne({ _id: photoId, eventId: event._id, "uploader.id": uploaderId });
   if (!photo) throw new HttpError(404, "photo_not_found");
-  if (photo.status !== "pending") return toPublicPhoto(photo, event);
+  if (photo.status !== "pending") return toPublicPhoto(photo, event, { viewerId: uploaderId });
 
   const variants = variantsOf(photo);
   const heads = await Promise.all(variants.map((variant) => headObject(photo.keys[variant]!)));
@@ -190,13 +197,21 @@ export async function completeUpload(event: EventDoc, uploaderId: ObjectId, phot
     }
   });
 
+  // AI pre-moderation (when enabled): flagged photos start hidden for the host to review.
+  const verdict = await checkImage(publicUrl(photo.keys.thumb));
   const updated = await photos.findOneAndUpdate(
     { _id: photo._id, status: "pending" },
-    { $set: { status: "ready", completedAt: new Date() } },
+    {
+      $set: {
+        status: verdict?.flagged ? "hidden" : "ready",
+        completedAt: new Date(),
+        ...(verdict ? { autoModeration: { ...verdict, at: new Date() } } : {}),
+      },
+    },
     { returnDocument: "after" },
   );
-  if (updated) await incrementEventCounter(event._id, "photos");
-  return toPublicPhoto(updated ?? photo, event);
+  if (updated?.status === "ready") await incrementEventCounter(event._id, "photos");
+  return toPublicPhoto(updated ?? photo, event, { viewerId: uploaderId });
 }
 
 export interface PublicPhoto {
@@ -208,6 +223,10 @@ export interface PublicPhoto {
   width: number;
   height: number;
   createdAt: string;
+  /** True when the requesting guest uploaded this photo (they may delete it). */
+  mine?: boolean;
+  /** Set on upload completion when auto moderation held the photo back for host review. */
+  pendingReview?: boolean;
 }
 
 /**
@@ -215,7 +234,11 @@ export interface PublicPhoto {
  * copy; after an upgrade the same photos switch to the clean file. Hosts always see clean
  * files (pass `{ clean: true }`).
  */
-export function toPublicPhoto(photo: PhotoDoc, event: Pick<EventDoc, "plan">, options: { clean?: boolean } = {}): PublicPhoto {
+export function toPublicPhoto(
+  photo: PhotoDoc,
+  event: Pick<EventDoc, "plan">,
+  options: { clean?: boolean; viewerId?: ObjectId } = {},
+): PublicPhoto {
   const showWatermarked = !options.clean && planOf(event).watermark && !!photo.keys.watermarked;
   return {
     id: photo._id.toHexString(),
@@ -226,12 +249,14 @@ export function toPublicPhoto(photo: PhotoDoc, event: Pick<EventDoc, "plan">, op
     width: photo.width,
     height: photo.height,
     createdAt: photo.createdAt.toISOString(),
+    ...(options.viewerId?.equals(photo.uploader.id) ? { mine: true } : {}),
+    ...(photo.status === "hidden" && photo.autoModeration?.flagged ? { pendingReview: true } : {}),
   };
 }
 
 export async function listEventPhotos(
   event: EventDoc,
-  options: { source: PhotoSource; cursor?: ObjectId; limit: number },
+  options: { source: PhotoSource; cursor?: ObjectId; limit: number; viewerId?: ObjectId },
 ): Promise<{ items: PublicPhoto[]; nextCursor: string | null }> {
   const { photos } = await collections();
   const filter: Filter<PhotoDoc> = { eventId: event._id, source: options.source, status: "ready" };
@@ -245,7 +270,7 @@ export async function listEventPhotos(
   const hasMore = docs.length > options.limit;
   const page = hasMore ? docs.slice(0, options.limit) : docs;
   return {
-    items: page.map((photo) => toPublicPhoto(photo, event)),
+    items: page.map((photo) => toPublicPhoto(photo, event, { viewerId: options.viewerId })),
     nextCursor: hasMore ? page[page.length - 1]._id.toHexString() : null,
   };
 }

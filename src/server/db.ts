@@ -53,6 +53,7 @@ export async function ensureIndexes(): Promise<void> {
     payments.createIndex({ stripeSessionId: 1 }, { unique: true, partialFilterExpression: { stripeSessionId: { $type: "string" } } }),
     payments.createIndex({ eventId: 1, createdAt: -1 }),
     guestSessions.createIndex({ eventId: 1, createdAt: -1 }),
+    guestSessions.createIndex({ eventId: 1, "notify.notifiedAt": 1 }, { partialFilterExpression: { "notify.email": { $exists: true } } }),
     // Gallery listing: newest first per event + source, cursor on _id.
     photos.createIndex({ eventId: 1, source: 1, status: 1, _id: -1 }),
     photos.createIndex({ "uploader.id": 1, eventId: 1 }),
@@ -66,6 +67,8 @@ export async function ensureIndexes(): Promise<void> {
       { unique: true, partialFilterExpression: { status: "open" } },
     ),
     reports.createIndex({ eventId: 1, status: 1, createdAt: -1 }),
+    db.collection("auditLogs").createIndex({ eventId: 1, at: -1 }),
+    db.collection("auditLogs").createIndex({ at: 1 }, { expireAfterSeconds: 400 * 24 * 60 * 60 }),
     // Better Auth collections (the adapter does not create indexes itself).
     db.collection("user").createIndex({ email: 1 }, { unique: true }),
     db.collection("session").createIndex({ token: 1 }, { unique: true }),

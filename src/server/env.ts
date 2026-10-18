@@ -18,6 +18,11 @@ const schema = z.object({
   STRIPE_SECRET_KEY: z.string().startsWith("sk_").optional(),
   /** Signing secret of the Stripe webhook endpoint (whsec_...). */
   STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
+  /** "vision" = hide photos Google Cloud Vision SafeSearch flags until the host reviews them. */
+  AUTO_MODERATION: z.enum(["off", "vision"]).default("off"),
+  /** Resend API key (re_...). Email features (guest notifications, expiry reminders) are hidden when unset. */
+  RESEND_API_KEY: z.string().startsWith("re_").optional(),
+  EMAIL_FROM: z.string().default("Tohs Event <noreply@tohsevent.com>"),
 });
 
 export type Env = z.infer<typeof schema>;

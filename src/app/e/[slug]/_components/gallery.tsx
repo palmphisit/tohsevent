@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lightbox } from "@/components/lightbox";
 import { listPhotos, type PublicPhoto } from "@/lib/api-client";
-import { ReportPhotoButton, SavePhotoButton } from "./photo-actions";
+import { DeleteMyPhotoButton, ReportPhotoButton, SavePhotoButton } from "./photo-actions";
 
 type Source = PublicPhoto["source"];
 
@@ -65,6 +65,7 @@ function PhotoGrid({
 }) {
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "idle" | "error">("loading");
 
@@ -102,8 +103,13 @@ function PhotoGrid({
 
   const visible = useMemo(() => {
     const seen = new Set(photos.map((p) => p.id));
-    return [...recentUploads.filter((p) => !seen.has(p.id)), ...photos];
-  }, [photos, recentUploads]);
+    return [...recentUploads.filter((p) => !seen.has(p.id)), ...photos].filter((p) => !removed.has(p.id));
+  }, [photos, recentUploads, removed]);
+
+  function onDeleted(photoId: string) {
+    setRemoved((prev) => new Set(prev).add(photoId));
+    setOpenIndex(null);
+  }
 
   async function loadMore() {
     if (!cursor) return;
@@ -164,7 +170,11 @@ function PhotoGrid({
           actions={(photo) => (
             <>
               <SavePhotoButton photo={photo} />
-              <ReportPhotoButton slug={slug} photo={photo} ensureSession={ensureSession} />
+              {photo.mine ? (
+                <DeleteMyPhotoButton slug={slug} photo={photo} onDeleted={onDeleted} />
+              ) : (
+                <ReportPhotoButton slug={slug} photo={photo} ensureSession={ensureSession} />
+              )}
             </>
           )}
         />

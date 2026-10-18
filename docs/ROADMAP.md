@@ -200,8 +200,11 @@ Index หลัก: `photos { eventId: 1, source: 1, status: 1, createdAt: -1 }`
    ส่วนดาวน์โหลดความละเอียดสูงแบบเสียเงินย้ายไป Phase 3 เพราะต้องมีไฟล์ต้นฉบับจากแอปช่างภาพก่อน
 3. **2c — Custom Branding** + แบนเนอร์ผู้สนับสนุน (Premium): สีหลัก (ปุ่ม/ไฮไลต์ ผ่าน CSS variable `--brand`),
    ฟอนต์ไทย 6 แบบ, โลโก้, รูปปก 3:1, ข้อความต้อนรับ และโลโก้ผู้สนับสนุนสูงสุด 12 รายพร้อมลิงก์
-4. **2d — PDPA**: Privacy Policy, consent ตอนอัปโหลด, Request to Delete, audit log
-5. **2e — ที่เหลือ**: Auto Moderation, ZIP download, แจ้งเตือนแขก, Private Access ผ่าน Worker
+4. **2d — PDPA**: `/privacy` + `/terms` (ร่าง รอทนายตรวจ), consent ก่อนแขกอัปโหลดครั้งแรก (บันทึกเวอร์ชันนโยบาย),
+   แขกลบรูปของตัวเองได้, เจ้าภาพเห็นเหตุผล/เวลาของคำขอลบ, audit log เก็บ 400 วัน
+5. **2e**: Auto Moderation (Vision SafeSearch ซ่อนรูปรอตรวจ), ZIP ทั้งอัลบั้ม (สตรีม ไฟล์ละ 300 รูป),
+   อีเมลแจ้งแขก + เตือนเจ้าภาพก่อนหมดอายุ (Resend), Private Access แบบ path รูปมี token สุ่ม
+   (แทน Cloudflare Worker — URL ของรูปในงานที่ตั้งรหัสผ่านเดาไม่ได้และแจกเฉพาะแขกที่ผ่านรหัส)
 
 ## Phase 3 — Photographer Suite
 

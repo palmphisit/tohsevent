@@ -178,6 +178,41 @@ gcloud run services update tohsevent --region asia-southeast1 \
 webhook เป็นตัวยืนยันหลัก ส่วนหน้า `/dashboard/events/:id/plan?checkout=success` จะดึงสถานะจาก Stripe ซ้ำอีกรอบ
 เผื่อ webhook มาช้า การอัปเกรดแต่ละครั้งถูก apply เพียงครั้งเดียวแม้ webhook จะถูกส่งซ้ำ
 
+## 9. ฟีเจอร์เสริม (เปิดเมื่อพร้อม)
+
+### Auto Moderation (Google Cloud Vision SafeSearch)
+
+ตรวจรูปตอนอัปโหลด ถ้าเจอว่าน่าจะเป็นรูปโป๊/รุนแรง จะซ่อนรูปไว้ในแท็บ "ถูกรายงาน" ให้เจ้าภาพตรวจ
+ถ้าเรียก Vision ไม่ได้ ระบบจะปล่อยรูปผ่านตามปกติ (fail-open) ค่าใช้จ่าย: ฟรี 1,000 รูปแรกต่อเดือน
+จากนั้นประมาณ $1.50 ต่อ 1,000 รูป
+
+```bash
+gcloud services enable vision.googleapis.com
+gcloud projects add-iam-policy-binding tohs-event --member="serviceAccount:tohsevent-run@tohs-event.iam.gserviceaccount.com" --role="roles/serviceusage.serviceUsageConsumer" --condition=None
+gcloud run services update tohsevent --region asia-southeast1 --update-env-vars AUTO_MODERATION=vision
+```
+
+### อีเมลแจ้งเตือน (Resend)
+
+ใช้แจ้งแขกที่สมัครไว้ว่ารูป Official พร้อมแล้ว และเตือนเจ้าภาพ 7 วันก่อนอัลบั้มหมดอายุ ถ้าไม่ได้ตั้ง key ฟีเจอร์เหล่านี้จะซ่อนอยู่
+
+1. สมัคร Resend แล้วเพิ่มโดเมน `tohsevent.com` จากนั้นใส่ DNS record ที่ Resend ให้มาใน Cloudflare (SPF/DKIM) แบบ DNS only
+2. สร้าง API key แล้วเก็บเข้า Secret Manager (วาง key แล้วกด Enter ตามด้วย Ctrl-D):
+
+```bash
+gcloud secrets create resend-api-key --data-file=-
+gcloud secrets add-iam-policy-binding resend-api-key --member="serviceAccount:tohsevent-run@tohs-event.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor" --condition=None
+gcloud run services update tohsevent --region asia-southeast1 --update-secrets RESEND_API_KEY=resend-api-key:latest --update-env-vars "EMAIL_FROM=Tohs Event <noreply@tohsevent.com>"
+```
+
+### ดาวน์โหลด ZIP
+
+ไฟล์ ZIP ถูกสตรีมจาก Cloud Run ไฟล์ละ 300 รูป ควรขยาย request timeout เพื่อให้ไฟล์ใหญ่ดาวน์โหลดจบ:
+
+```bash
+gcloud run services update tohsevent --region asia-southeast1 --timeout 3600
+```
+
 ## Checklist ก่อนเปิดใช้งาน
 
 - [ ] `APP_ORIGIN` ตรงกับโดเมนจริง และอยู่ใน CORS ของ R2
@@ -186,4 +221,5 @@ webhook เป็นตัวยืนยันหลัก ส่วนหน�
 - [ ] ตั้ง Cloud Scheduler สำหรับ cleanup และทดสอบรันแล้ว
 - [ ] รัน load test กับ environment จริงแล้ว และตั้ง `--min-instances 1` ช่วงวันงาน
 - [ ] Stripe: เปลี่ยนเป็น live key, ลงทะเบียน webhook ของ live mode และทดลองจ่ายจริงด้วยยอดเล็ก ๆ 1 ครั้ง
+- [ ] กรอกข้อมูลผู้ให้บริการใน `src/lib/legal.ts` และให้ทนายตรวจ `/privacy` กับ `/terms`
 - [ ] ทดสอบอัปโหลดจากมือถือจริง (iOS Safari + Android Chrome) ผ่าน 4G

@@ -47,9 +47,14 @@ pnpm dev
 | GET | `/api/v1/events/:slug/photos?source=guest\|official&cursor=` | รายการรูป (แบ่งหน้าด้วย cursor) |
 | POST | `/api/v1/events/:slug/uploads` | ขอ presigned upload URL (สูงสุด 10 ไฟล์ต่อครั้ง) |
 | POST | `/api/v1/events/:slug/photos/:photoId/complete` | ยืนยันว่าอัปโหลดเสร็จแล้ว |
+| DELETE | `/api/v1/events/:slug/photos/:photoId` | แขกลบรูปที่ตัวเองอัปโหลด |
+| POST / DELETE | `/api/v1/events/:slug/notify` | แขกสมัคร / ยกเลิกอีเมลแจ้งเตือนเมื่อรูป Official พร้อม |
+| GET | `/api/v1/unsubscribe?token=` | ลิงก์ยกเลิกอีเมลที่เซ็นไว้ (แนบในทุกอีเมลถึงแขก) |
 | POST | `/api/v1/events/:slug/photos/:photoId/report` | แขกรายงาน / ขอลบรูป (`inappropriate`, `remove_me`, `other`) |
 | GET / PUT | `/api/v1/host/events/:id/branding` | ดู / บันทึก Custom Branding ของหน้าแขก (Premium) |
 | POST | `/api/v1/host/events/:id/branding/assets` | presigned upload สำหรับโลโก้ / รูปปก / โลโก้ผู้สนับสนุน |
+| GET | `/api/v1/host/events/:id/download?source=guest\|official&part=` | ZIP ของรูปที่แสดงอยู่ (ไฟล์ละ 300 รูป) |
+| POST | `/api/v1/host/events/:id/notify-guests` | ส่งอีเมลแจ้งแขกที่สมัครไว้ว่ารูปพร้อม |
 | POST | `/api/v1/host/events/:id/checkout` | เริ่ม Stripe Checkout เพื่ออัปเกรดแพ็กเกจ (`{ tier }`) |
 | POST | `/api/stripe/webhook` | Stripe webhook (`checkout.session.*`) |
 | POST | `/api/internal/cleanup` | งานรายวันสำหรับ Cloud Scheduler: ล้างอัปโหลดค้าง, ปิดอัลบั้มหมดอายุ, ลบไฟล์อัลบั้มที่หมดอายุเกิน 7 วัน (`Authorization: Bearer <CRON_SECRET>`) |

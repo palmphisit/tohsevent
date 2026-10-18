@@ -4,7 +4,18 @@ import { collections } from "../db";
 import { readGuestSession } from "../guest-session";
 import { HttpError } from "../http";
 import { planOf, type EventDoc, type GuestSessionDoc } from "../models";
+import { LEGAL } from "../../lib/legal";
 import { verifyPassword } from "../password";
+
+/** Guest session as sent to the browser. */
+export function toPublicSession(session: GuestSessionDoc) {
+  return {
+    id: session._id.toHexString(),
+    displayName: session.displayName,
+    uploadCount: session.uploadCount,
+    notifyEmail: session.notify?.email ?? null,
+  };
+}
 
 export async function findGuestSession(event: EventDoc, sessionId: string): Promise<GuestSessionDoc | null> {
   if (!ObjectId.isValid(sessionId)) return null;
@@ -15,8 +26,11 @@ export async function findGuestSession(event: EventDoc, sessionId: string): Prom
 /** Creates a guest session after checking the event password (if any). */
 export async function joinEvent(
   event: EventDoc,
-  input: { displayName?: string; password?: string; ipHash: string | null },
+  input: { displayName?: string; password?: string; consent?: boolean; ipHash: string | null },
 ): Promise<GuestSessionDoc> {
+  if (!input.consent) {
+    throw new HttpError(400, "consent_required", "Accept the privacy policy before joining");
+  }
   if (event.access.mode === "password") {
     const ok = !!input.password && !!event.access.passwordHash && (await verifyPassword(input.password, event.access.passwordHash));
     if (!ok) throw new HttpError(401, "invalid_password", "Incorrect event password");
@@ -36,6 +50,7 @@ export async function joinEvent(
     displayName: input.displayName?.trim() || null,
     uploadCount: 0,
     ipHash: input.ipHash,
+    consent: { version: LEGAL.version, at: new Date() },
     createdAt: new Date(),
   };
   await guestSessions.insertOne(session);

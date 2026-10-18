@@ -28,6 +28,8 @@ export interface EventDoc {
   purgedAt?: Date | null;
   /** Custom look of the guest page (Premium). Storage keys point to events/<id>/branding/*. */
   branding?: BrandingDoc;
+  /** When the host was emailed that the album expires soon. */
+  expiryReminderSentAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,6 +76,10 @@ export interface GuestSessionDoc {
   /** Photos reserved through presigned uploads; enforces settings.maxPhotosPerGuest atomically. */
   uploadCount: number;
   ipHash: string | null;
+  /** Privacy-policy version the guest accepted before joining (PDPA consent record). */
+  consent?: { version: string; at: Date };
+  /** Opt-in email for "official photos are ready" (removed on unsubscribe or album purge). */
+  notify?: { email: string; consentAt: Date; notifiedAt: Date | null };
   createdAt: Date;
 }
 
@@ -100,6 +106,13 @@ export interface PhotoDoc {
   status: PhotoStatus;
   /** Number of open guest reports (missing on photos uploaded before reports existed). */
   openReports?: number;
+  /** SafeSearch result; `flagged` photos start hidden until the host reviews them. */
+  autoModeration?: {
+    flagged: boolean;
+    labels: { adult: string; violence: string; racy: string };
+    at: Date;
+    reviewedAt?: Date;
+  };
   createdAt: Date;
   completedAt: Date | null;
   deletedAt?: Date;

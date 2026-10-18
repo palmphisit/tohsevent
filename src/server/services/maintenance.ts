@@ -1,7 +1,9 @@
+import { audit } from "../audit";
 import { collections } from "../db";
 import { PURGE_GRACE_DAYS } from "../plans";
 import { deleteObjects } from "../storage";
 import { brandingKeys } from "./branding";
+import { sendExpiryReminders } from "./notifications";
 import { releasePhotoQuota } from "./photos";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -16,6 +18,7 @@ export interface CleanupResult {
   eventsExpired: number;
   photosPurged: number;
   albumsPurged: number;
+  expiryRemindersSent: number;
 }
 
 /**
@@ -52,11 +55,15 @@ export async function runDailyCleanup(now = new Date()): Promise<CleanupResult> 
   );
 
   const purged = await purgeExpiredAlbums(now);
-  return { stalePhotosRemoved: stale.length, eventsExpired: expired.modifiedCount, ...purged };
+  const expiryRemindersSent = await sendExpiryReminders(now).catch((error) => {
+    console.error("expiry reminders failed", error);
+    return 0;
+  });
+  return { stalePhotosRemoved: stale.length, eventsExpired: expired.modifiedCount, ...purged, expiryRemindersSent };
 }
 
 async function purgeExpiredAlbums(now: Date): Promise<{ photosPurged: number; albumsPurged: number }> {
-  const { events, photos } = await collections();
+  const { events, photos, guestSessions } = await collections();
   const cutoff = new Date(now.getTime() - PURGE_GRACE_DAYS * DAY_MS);
   const due = await events
     .find({ status: "expired", expiresAt: { $lt: cutoff }, purgedAt: null })
@@ -88,6 +95,9 @@ async function purgeExpiredAlbums(now: Date): Promise<{ photosPurged: number; al
     const remaining = await photos.countDocuments({ eventId: event._id, status: { $in: ["pending", "ready", "hidden"] } });
     if (remaining === 0) {
       await deleteObjects(brandingKeys(event.branding));
+      // Data minimisation: notification emails are not needed once the album is gone.
+      await guestSessions.updateMany({ eventId: event._id }, { $unset: { notify: "" } });
+      await audit({ eventId: event._id, actor: { type: "system", id: "daily-cleanup" }, action: "album.purge" });
       await events.updateOne(
         { _id: event._id },
         { $set: { purgedAt: now, "counters.photos": 0, "usage.photos": 0, updatedAt: now } },

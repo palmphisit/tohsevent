@@ -28,6 +28,7 @@ function errorMessage(error: unknown): string {
     if (error.code === "uploads_disabled") return "งานนี้ปิดรับรูปแล้ว";
     if (error.code === "photo_limit_reached") return "อัลบั้มนี้เต็มแล้ว";
     if (error.code === "event_full") return "งานนี้มีแขกครบจำนวนแล้ว";
+    if (error.code === "consent_declined") return "ต้องยอมรับนโยบายก่อนอัปโหลด";
   }
   return "อัปโหลดไม่สำเร็จ";
 }
@@ -82,10 +83,17 @@ export function Uploader({
   target,
   onUploaded,
   persistKey,
+  gate,
   label = "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด",
 }: {
   target: UploadTarget;
   onUploaded: (photo: PublicPhoto) => void;
+  /**
+   * Called on tap before the file picker opens. Return false to hold it (e.g. to ask for
+   * consent first) and call `openPicker` later from another tap — iOS only opens the
+   * picker inside a user gesture.
+   */
+  gate?: (openPicker: () => void) => boolean;
   /** When set, unfinished files survive a closed tab and resume on the next visit. */
   persistKey?: string;
   label?: string;
@@ -219,7 +227,10 @@ export function Uploader({
       />
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          const openPicker = () => inputRef.current?.click();
+          if (!gate || gate(openPicker)) openPicker();
+        }}
         className="w-full rounded-xl bg-brand px-4 py-4 text-lg font-medium text-brand-contrast active:scale-[0.99]"
       >
         {label}

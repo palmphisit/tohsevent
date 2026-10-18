@@ -14,6 +14,19 @@ import {
   type PublicPhoto,
 } from "@/lib/api-client";
 
+const REPORT_LABELS: Record<HostPhoto["reports"][number]["reason"], string> = {
+  remove_me: "คนในรูปขอให้ลบ",
+  inappropriate: "ไม่เหมาะสม",
+  other: "อื่น ๆ",
+};
+
+function timeAgo(iso: string): string {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (minutes < 60) return `${Math.max(1, minutes)} นาทีที่แล้ว`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours} ชม.ที่แล้ว` : `${Math.round(hours / 24)} วันที่แล้ว`;
+}
+
 const TABS: { view: HostPhotoView; label: string }[] = [
   { view: "guest", label: "รูปจากแขก" },
   { view: "official", label: "รูป Official" },
@@ -121,12 +134,12 @@ function ModerationGrid({
           action === "keep" ? { dismissReports: true } : { status: action === "hide" ? "hidden" : "ready" },
         );
         setPhotos((prev) =>
-          view === "reported" && updated.openReports === 0
+          view === "reported" && updated.openReports === 0 && !updated.autoFlagged
             ? prev.filter((p) => p.id !== photo.id)
             : prev.map((p) => (p.id === photo.id ? updated : p)),
         );
       }
-      if (photo.openReports > 0 && action !== "show") onReportsResolved(1);
+      if ((photo.openReports > 0 && action !== "show") || photo.autoFlagged) onReportsResolved(1);
     } catch {
       window.alert("ทำรายการไม่สำเร็จ ลองอีกครั้ง");
     } finally {
@@ -136,7 +149,10 @@ function ModerationGrid({
 
   const onUploaded = useCallback(
     (photo: PublicPhoto) =>
-      setPhotos((prev) => [{ ...photo, status: "ready", openReports: 0 }, ...prev.filter((p) => p.id !== photo.id)]),
+      setPhotos((prev) => [
+        { ...photo, status: photo.pendingReview ? "hidden" : "ready", openReports: 0, reports: [], autoFlagged: null },
+        ...prev.filter((p) => p.id !== photo.id),
+      ]),
     [],
   );
   const uploadTarget = useMemo<UploadTarget>(
@@ -184,8 +200,12 @@ function ModerationGrid({
                 className={`h-full w-full object-cover ${photo.status === "hidden" ? "opacity-40 grayscale" : ""}`}
               />
               <div className="absolute top-2 left-2 flex gap-1">
-                {photo.status === "hidden" && (
-                  <span className="rounded-full bg-zinc-900 px-2 py-0.5 text-xs text-white">ซ่อนอยู่</span>
+                {photo.autoFlagged ? (
+                  <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs text-white">AI ซ่อนไว้รอตรวจ</span>
+                ) : (
+                  photo.status === "hidden" && (
+                    <span className="rounded-full bg-zinc-900 px-2 py-0.5 text-xs text-white">ซ่อนอยู่</span>
+                  )
                 )}
                 {photo.openReports > 0 && (
                   <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">
@@ -195,10 +215,17 @@ function ModerationGrid({
               </div>
             </button>
             <div className="flex gap-1 p-1.5 text-xs">
-              {photo.status === "ready" ? (
-                <ActionButton disabled={busy === photo.id} onClick={() => act(photo, "hide")}>
-                  ซ่อน
-                </ActionButton>
+              {photo.status === "ready" || photo.autoFlagged ? (
+                <>
+                  {photo.autoFlagged && (
+                    <ActionButton disabled={busy === photo.id} onClick={() => act(photo, "show")}>
+                      แสดง
+                    </ActionButton>
+                  )}
+                  <ActionButton disabled={busy === photo.id} onClick={() => act(photo, "hide")}>
+                    {photo.autoFlagged ? "ซ่อนต่อ" : "ซ่อน"}
+                  </ActionButton>
+                </>
               ) : (
                 <ActionButton disabled={busy === photo.id} onClick={() => act(photo, "show")}>
                   แสดง
@@ -214,6 +241,16 @@ function ModerationGrid({
               </ActionButton>
             </div>
             {photo.uploaderName && <p className="truncate px-2 pb-2 text-xs text-zinc-500">{photo.uploaderName}</p>}
+            {photo.reports.length > 0 && (
+              <ul className="space-y-1 border-t border-zinc-100 px-2 py-2 text-xs">
+                {photo.reports.map((r, i) => (
+                  <li key={i} className={r.reason === "remove_me" ? "text-red-700" : "text-zinc-600"}>
+                    {REPORT_LABELS[r.reason]} · {timeAgo(r.createdAt)}
+                    {r.note && <span className="block text-zinc-500">“{r.note}”</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         ))}
       </ul>

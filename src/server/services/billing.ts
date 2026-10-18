@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import type Stripe from "stripe";
 import type { Host } from "../auth";
+import { audit } from "../audit";
 import { collections } from "../db";
 import { env } from "../env";
 import { HttpError } from "../http";
@@ -97,6 +98,13 @@ export async function fulfillCheckoutSession(session: Stripe.Checkout.Session): 
   if (planRank(payment.toTier) <= planRank(planOf(event).tier)) return "applied";
 
   const plan = PLANS[payment.toTier];
+  await audit({
+    eventId: event._id,
+    actor: { type: "system", id: "stripe" },
+    action: "plan.upgrade",
+    target: payment._id,
+    meta: { fromTier: payment.fromTier, toTier: payment.toTier, amountThb: payment.amountThb },
+  });
   await events.updateOne(
     { _id: event._id },
     {

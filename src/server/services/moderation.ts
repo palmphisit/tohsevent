@@ -15,14 +15,43 @@ export type HostPhotoView = (typeof HOST_PHOTO_VIEWS)[number];
 export interface HostPhoto extends PublicPhoto {
   status: "ready" | "hidden";
   openReports: number;
+  /** Open reports (reason, note, when), newest first. */
+  reports: { reason: ReportReason; note: string | null; createdAt: string }[];
+  /** Hidden automatically by SafeSearch and not reviewed yet. */
+  autoFlagged: { adult: string; violence: string; racy: string } | null;
 }
 
-function toHostPhoto(photo: PhotoDoc, event: EventDoc): HostPhoto {
+/** Needs host attention: open guest reports, or hidden by auto moderation and not yet reviewed. */
+function needsReview(eventId: ObjectId): Filter<PhotoDoc> {
+  return {
+    eventId,
+    $or: [
+      { openReports: { $gt: 0 }, status: { $in: ["ready", "hidden"] } },
+      { "autoModeration.flagged": true, status: "hidden" },
+    ],
+  };
+}
+
+function toHostPhoto(photo: PhotoDoc, event: EventDoc, reports: HostPhoto["reports"] = []): HostPhoto {
   return {
     ...toPublicPhoto(photo, event, { clean: true }),
     status: photo.status === "hidden" ? "hidden" : "ready",
     openReports: photo.openReports ?? 0,
+    reports,
+    autoFlagged: photo.autoModeration?.flagged && photo.status === "hidden" ? photo.autoModeration.labels : null,
   };
+}
+
+async function openReportsFor(photoIds: ObjectId[]): Promise<Map<string, HostPhoto["reports"]>> {
+  const byPhoto = new Map<string, HostPhoto["reports"]>();
+  if (photoIds.length === 0) return byPhoto;
+  const { reports } = await collections();
+  const docs = await reports.find({ photoId: { $in: photoIds }, status: "open" }).sort({ createdAt: -1 }).toArray();
+  for (const r of docs) {
+    const key = r.photoId.toHexString();
+    byPhoto.set(key, [...(byPhoto.get(key) ?? []), { reason: r.reason, note: r.note, createdAt: r.createdAt.toISOString() }]);
+  }
+  return byPhoto;
 }
 
 export async function listHostPhotos(
@@ -32,7 +61,7 @@ export async function listHostPhotos(
   const { photos } = await collections();
   const filter: Filter<PhotoDoc> =
     options.view === "reported"
-      ? { eventId: event._id, openReports: { $gt: 0 }, status: { $in: ["ready", "hidden"] } }
+      ? needsReview(event._id)
       : { eventId: event._id, source: options.view, status: { $in: ["ready", "hidden"] } };
   if (options.cursor) filter._id = { $lt: options.cursor };
 
@@ -43,7 +72,10 @@ export async function listHostPhotos(
     .toArray();
   const hasMore = docs.length > options.limit;
   const page = hasMore ? docs.slice(0, options.limit) : docs;
-  return { items: page.map((photo) => toHostPhoto(photo, event)), nextCursor: hasMore ? page[page.length - 1]._id.toHexString() : null };
+  const reportsByPhoto = await openReportsFor(page.filter((p) => (p.openReports ?? 0) > 0).map((p) => p._id));
+  return {
+    items: page.map((photo) => toHostPhoto(photo, event, reportsByPhoto.get(photo._id.toHexString()))),
+    nextCursor: hasMore ? page[page.length - 1]._id.toHexString() : null };
 }
 
 async function closeReports(photoId: ObjectId, status: Exclude<ReportDoc["status"], "open">) {
@@ -79,6 +111,11 @@ export async function moderatePhoto(
     );
     if (changed) await incrementEventCounter(event._id, "photos", action.status === "hidden" ? -1 : 1);
     if (action.status === "hidden") await closeReports(photoId, "resolved");
+    // Any explicit show/hide by the host counts as reviewing an auto-moderation flag.
+    await photos.updateOne(
+      { _id: photoId, "autoModeration.flagged": true },
+      { $set: { "autoModeration.flagged": false, "autoModeration.reviewedAt": new Date() } },
+    );
   }
   if (action.dismissReports) await closeReports(photoId, "dismissed");
 
@@ -86,10 +123,20 @@ export async function moderatePhoto(
 }
 
 /** Soft-deletes the photo record (kept for audit) and removes the files from storage. */
-export async function deletePhoto(event: EventDoc, photoId: ObjectId): Promise<void> {
+export async function deletePhoto(
+  event: EventDoc,
+  photoId: ObjectId,
+  options: { uploaderId?: ObjectId } = {},
+): Promise<void> {
   const { photos } = await collections();
   const before = await photos.findOneAndUpdate(
-    { _id: photoId, eventId: event._id, status: { $in: ["ready", "hidden"] } },
+    {
+      _id: photoId,
+      eventId: event._id,
+      status: { $in: ["ready", "hidden"] },
+      // Guests may only delete their own uploads.
+      ...(options.uploaderId ? { "uploader.id": options.uploaderId } : {}),
+    },
     { $set: { status: "deleted", deletedAt: new Date() } },
   );
   if (!before) throw new HttpError(404, "photo_not_found");
@@ -131,5 +178,5 @@ export async function reportPhoto(
 
 export async function countOpenReports(event: EventDoc): Promise<number> {
   const { photos } = await collections();
-  return photos.countDocuments({ eventId: event._id, openReports: { $gt: 0 }, status: { $in: ["ready", "hidden"] } });
+  return photos.countDocuments(needsReview(event._id));
 }

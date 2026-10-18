@@ -2,18 +2,22 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { readGuestSession, setGuestCookie } from "@/server/guest-session";
 import { clientIpHash, parseJson, route } from "@/server/http";
-import type { GuestSessionDoc } from "@/server/models";
 import { requireOpenEventBySlug } from "@/server/services/events";
-import { findGuestSession, joinEvent, requireGuestSession, updateDisplayName } from "@/server/services/guests";
+import {
+  findGuestSession,
+  joinEvent,
+  requireGuestSession,
+  toPublicSession,
+  updateDisplayName,
+} from "@/server/services/guests";
 
 const joinSchema = z.object({
   displayName: z.string().trim().max(40).optional(),
   password: z.string().max(100).optional(),
+  /** The guest accepted the privacy policy (required to create a session). */
+  consent: z.literal(true).optional(),
 });
 
-function toPublicSession(session: GuestSessionDoc) {
-  return { id: session._id.toHexString(), displayName: session.displayName, uploadCount: session.uploadCount };
-}
 
 /** Current guest session for this event (if the cookie is present and valid). */
 export const GET = route(async (req: NextRequest, ctx: RouteContext<"/api/v1/events/[slug]/session">) => {

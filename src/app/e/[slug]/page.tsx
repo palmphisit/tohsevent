@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { guestCookieName, verifyGuestToken } from "@/server/guest-session";
 import { findOpenEventBySlug, toPublicEvent } from "@/server/services/events";
-import { findGuestSession } from "@/server/services/guests";
+import { findGuestSession, toPublicSession } from "@/server/services/guests";
 import { GuestApp } from "./_components/guest-app";
 
 export default function EventPage({ params }: PageProps<"/e/[slug]">) {
@@ -28,11 +28,7 @@ async function EventLoader({ params }: Pick<PageProps<"/e/[slug]">, "params">) {
   return (
     <GuestApp
       event={toPublicEvent(event)}
-      initialSession={
-        session
-          ? { id: session._id.toHexString(), displayName: session.displayName, uploadCount: session.uploadCount }
-          : null
-      }
+      initialSession={session ? toPublicSession(session) : null}
     />
   );
 }

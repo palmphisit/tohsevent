@@ -14,6 +14,7 @@ export interface GuestSession {
   id: string;
   displayName: string | null;
   uploadCount: number;
+  notifyEmail: string | null;
 }
 
 export class ApiError extends Error {
@@ -41,7 +42,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const base = (slug: string) => `/api/v1/events/${encodeURIComponent(slug)}`;
 
-export function joinEvent(slug: string, input: { displayName?: string; password?: string }) {
+export function joinEvent(slug: string, input: { displayName?: string; password?: string; consent?: true }) {
   return request<{ session: GuestSession }>(`${base(slug)}/session`, { method: "POST", body: JSON.stringify(input) });
 }
 
@@ -92,6 +93,18 @@ export async function putToStorage(reservation: PresignedUpload, image: Prepared
 
 export function completeUpload(slug: string, photoId: string) {
   return request<{ photo: PublicPhoto }>(`${base(slug)}/photos/${photoId}/complete`, { method: "POST" });
+}
+
+export function subscribeNotify(slug: string, email: string) {
+  return request<{ notifyEmail: string }>(`${base(slug)}/notify`, { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function unsubscribeNotify(slug: string) {
+  return request<null>(`${base(slug)}/notify`, { method: "DELETE" });
+}
+
+export function deleteMyPhoto(slug: string, photoId: string) {
+  return request<null>(`${base(slug)}/photos/${photoId}`, { method: "DELETE" });
 }
 
 export function reportPhoto(slug: string, photoId: string, input: { reason: ReportReason; note?: string }) {
@@ -170,4 +183,8 @@ export function saveBranding(eventId: string, input: SaveBrandingInput) {
     method: "PUT",
     body: JSON.stringify(input),
   });
+}
+
+export function notifyGuests(eventId: string) {
+  return request<{ sent: number }>(`${hostBase(eventId)}/notify-guests`, { method: "POST" });
 }

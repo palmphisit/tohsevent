@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   NotFound,
   PutObjectCommand,
@@ -63,6 +64,13 @@ export async function headObject(key: string): Promise<HeadObjectCommandOutput |
  */
 export async function deleteObjects(keys: string[]): Promise<void> {
   await Promise.all(keys.map((Key) => s3().send(new DeleteObjectCommand({ Bucket: env().R2_BUCKET, Key }))));
+}
+
+/** Streams an object's bytes (used to build album ZIPs without buffering whole files). */
+export async function getObjectStream(key: string): Promise<ReadableStream<Uint8Array>> {
+  const res = await s3().send(new GetObjectCommand({ Bucket: env().R2_BUCKET, Key: key }));
+  if (!res.Body) throw new Error(`Empty object body: ${key}`);
+  return res.Body.transformToWebStream() as ReadableStream<Uint8Array>;
 }
 
 export function publicUrl(key: string): string {

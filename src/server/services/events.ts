@@ -2,6 +2,7 @@ import type { ObjectId } from "mongodb";
 import { collections } from "../db";
 import { HttpError } from "../http";
 import { planOf, type EventDoc } from "../models";
+import { emailEnabled } from "../email";
 import { toPublicBranding, type PublicBranding } from "./branding";
 
 /** Shape of an event that is safe to send to guests. */
@@ -16,6 +17,8 @@ export interface PublicEvent {
   watermark: boolean;
   /** Premium custom look; null means the default Tohs Event style. */
   branding: PublicBranding | null;
+  /** Guests can ask for an email when official photos are ready. */
+  notifyAvailable: boolean;
 }
 
 export function toPublicEvent(event: EventDoc): PublicEvent {
@@ -28,6 +31,7 @@ export function toPublicEvent(event: EventDoc): PublicEvent {
     guestUpload: event.settings.guestUpload,
     watermark: planOf(event).watermark,
     branding: toPublicBranding(event),
+    notifyAvailable: emailEnabled(),
   };
 }
 
