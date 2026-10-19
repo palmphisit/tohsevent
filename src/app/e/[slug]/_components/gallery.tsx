@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Camera, ImagePlus } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { MediaThumb } from "@/components/media-thumb";
-import { listPhotos, type PublicPhoto } from "@/lib/api-client";
+import { listPhotos, type Appearance, type PublicPhoto } from "@/lib/api-client";
 import { DeleteMyPhotoButton, ReportPhotoButton, SavePhotoButton } from "./photo-actions";
 
 type Source = PublicPhoto["source"];
 
 const TABS: { source: Source; label: string }[] = [
-  { source: "official", label: "Official" },
-  { source: "guest", label: "Guest Photos" },
+  { source: "official", label: "รูปจากช่างภาพ" },
+  { source: "guest", label: "รูปจากแขก" },
 ];
 const POLL_MS = 15_000;
 
@@ -19,16 +19,20 @@ export function Gallery({
   slug,
   recentUploads,
   ensureSession,
+  layout = "grid",
+  defaultTab = "guest",
 }: {
   slug: string;
   recentUploads: PublicPhoto[];
   ensureSession: () => Promise<unknown>;
+  layout?: Appearance["gallery"];
+  defaultTab?: Source;
 }) {
-  const [source, setSource] = useState<Source>("guest");
+  const [source, setSource] = useState<Source>(defaultTab);
 
   return (
     <section className="mt-10">
-      <div role="tablist" className="flex gap-1 rounded-xl bg-slate-100 p-1">
+      <div role="tablist" className="flex gap-1 rounded-xl bg-surface p-1">
         {TABS.map((tab) => (
           <button
             key={tab.source}
@@ -36,7 +40,7 @@ export function Gallery({
             aria-selected={source === tab.source}
             onClick={() => setSource(tab.source)}
             className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
-              source === tab.source ? "bg-white text-brand shadow-sm" : "text-slate-500 hover:text-slate-700"
+              source === tab.source ? "bg-card text-brand shadow-sm" : "text-muted hover:text-ink/85"
             }`}
           >
             {tab.label}
@@ -49,6 +53,7 @@ export function Gallery({
         source={source}
         recentUploads={source === "guest" ? recentUploads : []}
         ensureSession={ensureSession}
+        layout={layout}
       />
     </section>
   );
@@ -59,11 +64,13 @@ function PhotoGrid({
   source,
   recentUploads,
   ensureSession,
+  layout,
 }: {
   slug: string;
   source: Source;
   recentUploads: PublicPhoto[];
   ensureSession: () => Promise<unknown>;
+  layout: Appearance["gallery"];
 }) {
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -127,17 +134,17 @@ function PhotoGrid({
   }
 
   if (state === "error" && visible.length === 0) {
-    return <p className="mt-6 text-center text-sm text-slate-500">โหลดรูปไม่สำเร็จ</p>;
+    return <p className="mt-6 text-center text-sm text-muted">โหลดรูปไม่สำเร็จ</p>;
   }
   if (state !== "loading" && visible.length === 0) {
     return (
-      <div className="mt-6 flex flex-col items-center rounded-2xl bg-slate-50 px-6 py-10 text-center">
+      <div className="mt-6 flex flex-col items-center rounded-2xl bg-surface/60 px-6 py-10 text-center">
         {source === "official" ? (
-          <Camera className="h-8 w-8 text-slate-300" />
+          <Camera className="h-8 w-8 text-muted/50" />
         ) : (
-          <ImagePlus className="h-8 w-8 text-slate-300" />
+          <ImagePlus className="h-8 w-8 text-muted/50" />
         )}
-        <p className="mt-3 text-sm text-slate-500">
+        <p className="mt-3 text-sm text-muted">
           {source === "official" ? "ช่างภาพยังไม่ได้อัปโหลดรูป กลับมาดูอีกครั้งหลังงาน" : "ยังไม่มีรูป เป็นคนแรกที่แชร์รูปเลย!"}
         </p>
       </div>
@@ -146,9 +153,13 @@ function PhotoGrid({
 
   return (
     <>
-      <ul className="mt-4 grid grid-cols-3 gap-1 sm:grid-cols-4">
+      <ul className={layout === "masonry" ? "mt-4 columns-2 gap-2 sm:columns-3" : "mt-4 grid grid-cols-3 gap-1.5 sm:grid-cols-4"}>
         {visible.map((photo, i) => (
-          <li key={photo.id} className="aspect-square overflow-hidden bg-slate-100">
+          <li
+            key={photo.id}
+            className={`overflow-hidden rounded-xl bg-surface ${layout === "masonry" ? "mb-2 break-inside-avoid" : "aspect-square"}`}
+            style={layout === "masonry" ? { aspectRatio: `${photo.width} / ${photo.height}` } : undefined}
+          >
             <button type="button" onClick={() => setOpenIndex(i)} className="relative block h-full w-full">
               <MediaThumb photo={photo} alt={photo.uploaderName ? `รูปจาก ${photo.uploaderName}` : "รูปในงาน"} />
             </button>
@@ -159,7 +170,7 @@ function PhotoGrid({
         <button
           onClick={loadMore}
           disabled={state === "loading"}
-          className="mt-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium disabled:opacity-50"
+          className="mt-4 w-full rounded-xl border border-line px-4 py-3 text-sm font-medium disabled:opacity-50"
         >
           {state === "loading" ? "กำลังโหลด…" : "ดูรูปเพิ่มเติม"}
         </button>

@@ -67,7 +67,7 @@ async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">
               href={`/dashboard/events/${event.id}/branding`}
               icon={<Palette className="h-5 w-5" />}
               title="ปรับแต่งหน้างาน"
-              text="สี ฟอนต์ โลโก้ รูปปก และผู้สนับสนุน (Premium)"
+              text="ธีม ส่วนหัว การจัดเรียงรูป · สีและโลโก้ (Premium)"
             />
             <ActionCard
               href={`/dashboard/events/${event.id}/slideshow`}

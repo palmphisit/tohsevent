@@ -257,15 +257,25 @@
 
 /* ---- Info panel with the QR frame ---- */
 
+/* The panel is as wide as the QR card (plus a little), so the photos get the rest. */
+.ss-root {
+  --ss-qr: 28cqmin;
+}
+.ss-root[data-qr="small"] {
+  --ss-qr: 21cqmin;
+}
+.ss-root[data-qr="large"] {
+  --ss-qr: 36cqmin;
+}
 .ss-panel {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 2.4cqmin;
-  width: 30%;
-  max-width: 64cqmin;
-  min-width: 0;
-  padding: 1cqmin 0.6cqmin;
+  gap: 2cqmin;
+  flex: 0 0 auto;
+  width: calc(var(--ss-qr) + 4cqmin);
+  min-width: 30cqmin;
+  padding: 0.6cqmin 0.4cqmin;
 }
 .ss-panel-text {
   display: flex;
@@ -280,7 +290,7 @@
   object-position: left;
 }
 .ss-headline {
-  font-size: 5cqmin;
+  font-size: 4.2cqmin;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.01em;
@@ -302,16 +312,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1cqmin;
-  padding: 2cqmin;
-  border-radius: 2.6cqmin;
+  gap: 0.8cqmin;
+  align-self: center;
+  width: calc(var(--ss-qr) + 2.4cqmin);
+  padding: 1.2cqmin 1.2cqmin 1.4cqmin;
+  border-radius: 2.2cqmin;
   background: #fff;
   color: #0f172a;
   box-shadow: 0 0 0 0.7cqmin var(--ss-ring), 0 2cqmin 5cqmin rgb(0 0 0 / 0.25);
 }
 .ss-qr {
-  width: 100%;
-  max-width: 34cqmin;
+  width: var(--ss-qr);
 }
 .ss-qr svg {
   display: block;
@@ -319,7 +330,7 @@
   height: auto;
 }
 .ss-qr-caption {
-  font-size: 2.4cqmin;
+  font-size: 2.1cqmin;
   font-weight: 600;
   text-align: center;
 }
@@ -365,7 +376,6 @@
     flex: 1;
   }
   .ss-qr-card {
-    width: 30cqmin;
     flex-shrink: 0;
   }
   .ss-panel-foot {

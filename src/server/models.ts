@@ -32,6 +32,8 @@ export interface EventDoc {
   expiryReminderSentAt?: Date | null;
   /** People invited to work on the event besides the owner (photographers). */
   members?: EventMember[];
+  /** Guest page look (every plan); missing = defaults (see services/appearance.ts). */
+  appearance?: AppearanceDoc;
   /** Big-screen slideshow look; missing = defaults (see services/slideshow.ts). */
   slideshow?: SlideshowDoc;
   createdAt: Date;
@@ -92,6 +94,24 @@ export interface SponsorDoc {
   linkUrl: string | null;
 }
 
+export const GUEST_THEMES = ["light", "soft", "dark"] as const;
+export const GUEST_HEADERS = ["banner", "hero", "minimal"] as const;
+export const GUEST_GALLERIES = ["grid", "masonry"] as const;
+
+export interface AppearanceDoc {
+  /** light = white page, soft = tinted with the event color, dark = night mode. */
+  theme: (typeof GUEST_THEMES)[number];
+  /** banner = cover strip above the title, hero = big cover with the title on it, minimal = text only. */
+  header: (typeof GUEST_HEADERS)[number];
+  /** grid = square tiles, masonry = photos in their own shape. */
+  gallery: (typeof GUEST_GALLERIES)[number];
+  defaultTab: "guest" | "official";
+  /** Upload button text; null = default. */
+  uploadLabel: string | null;
+  showDate: boolean;
+  updatedAt: Date;
+}
+
 export const SLIDESHOW_LAYOUTS = ["spotlight", "wall"] as const;
 export const SLIDESHOW_THEMES = ["dark", "light", "brand"] as const;
 export const SLIDESHOW_SOURCES = ["all", "guest", "official"] as const;
@@ -108,6 +128,8 @@ export interface SlideshowDoc {
   showDate: boolean;
   showUploader: boolean;
   panelSide: "left" | "right";
+  /** Size of the QR code on screen (missing on older saves = medium). */
+  qrSize?: "small" | "medium" | "large";
   /** Seconds each photo stays on screen (spotlight) / speed of the wall. */
   intervalSec: number;
   updatedAt: Date;

@@ -189,6 +189,18 @@ export function SlideshowEditor({
             />
           </div>
           <div>
+            <h2 className="mb-2 text-sm font-medium">ขนาด QR Code</h2>
+            <Segmented
+              value={settings.qrSize ?? "medium"}
+              onChange={(v) => set("qrSize", v)}
+              options={[
+                { value: "small", label: "เล็ก" },
+                { value: "medium", label: "กลาง" },
+                { value: "large", label: "ใหญ่" },
+              ]}
+            />
+          </div>
+          <div>
             <h2 className="mb-2 text-sm font-medium">แผงข้อมูลอยู่ด้าน</h2>
             <Segmented
               value={settings.panelSide}

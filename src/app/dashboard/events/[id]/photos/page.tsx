@@ -7,7 +7,9 @@ import { countOpenReports } from "@/server/services/moderation";
 import { originalsAvailable } from "@/server/services/originals";
 import { pendingNotificationCount } from "@/server/services/notifications";
 import { loadEventPageForMember } from "../load-event";
+import { eventUsage } from "@/server/services/usage";
 import { DriveExportPanel } from "./drive-export-panel";
+import { UsageCard } from "./usage-card";
 import { NotifyGuestsButton } from "./notify-guests-button";
 import { PhotoModeration } from "./photo-moderation";
 
@@ -25,10 +27,11 @@ async function PhotosLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/p
   const { id } = await params;
   const { event, role } = await loadEventPageForMember(id);
   const owner = role === "owner";
-  const [openReports, counts, waitingForEmail] = await Promise.all([
+  const [openReports, counts, waitingForEmail, usage] = await Promise.all([
     countOpenReports(event),
     downloadableCounts(event),
     owner && emailEnabled() ? pendingNotificationCount(event) : Promise.resolve(null),
+    eventUsage(event),
   ]);
 
   return (
@@ -37,6 +40,7 @@ async function PhotosLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/p
         ← {event.title}
       </Link>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">จัดการรูปภาพ</h1>
+      <UsageCard eventId={id} usage={usage} owner={owner} />
       <DownloadPanel eventId={id} counts={counts} />
       <DriveExportPanel eventId={id} counts={counts} />
       {waitingForEmail !== null && <NotifyGuestsButton eventId={id} pending={waitingForEmail} />}

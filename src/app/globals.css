@@ -20,6 +20,34 @@
   /* Event branding (Premium) overrides these via --brand / --brand-contrast on a wrapper. */
   --color-brand: var(--brand, #2563eb);
   --color-brand-contrast: var(--brand-contrast, #ffffff);
+
+  /* Surfaces shared by the guest page and the uploader. Defaults are the slate palette;
+     the guest page's theme (light / soft / dark) overrides them on its wrapper. */
+  --color-ink: var(--g-ink, #0f172a);
+  --color-muted: var(--g-muted, #64748b);
+  --color-surface: var(--g-surface, #f1f5f9);
+  --color-card: var(--g-card, #ffffff);
+  --color-line: var(--g-line, #e2e8f0);
+}
+
+.guest-page {
+  --g-page: #ffffff;
+  background: var(--g-page);
+  color: var(--color-ink);
+}
+.guest-page[data-theme="soft"] {
+  --g-page: color-mix(in srgb, var(--color-brand) 6%, #ffffff);
+  --g-surface: color-mix(in srgb, var(--color-brand) 10%, #ffffff);
+  --g-line: color-mix(in srgb, var(--color-brand) 18%, #ffffff);
+}
+.guest-page[data-theme="dark"] {
+  --g-page: #020617;
+  --g-ink: #f1f5f9;
+  --g-muted: #94a3b8;
+  --g-surface: #1e293b;
+  --g-card: #0f172a;
+  --g-line: #334155;
+  color-scheme: dark;
 }
 
 body {

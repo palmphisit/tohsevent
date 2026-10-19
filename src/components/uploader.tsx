@@ -300,25 +300,25 @@ export function Uploader({
         {label ?? (target.video ? "ถ่าย / เลือกรูปหรือวิดีโอ" : "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด")}
       </button>
       {target.video && (
-        <p className="mt-2 text-center text-xs text-slate-500">
+        <p className="mt-2 text-center text-xs text-muted">
           วิดีโอยาวไม่เกิน {Math.round(target.video.maxDurationSec)} วินาที · ไฟล์ไม่เกิน{" "}
           {Math.round(target.video.maxBytes / 1024 / 1024)} MB
         </p>
       )}
 
       {items.length > 0 && (
-        <div className="mt-3 rounded-xl border border-slate-200 p-3">
+        <div className="mt-3 rounded-xl border border-line p-3">
           {restoredCount > 0 && (
-            <p className="mb-1 text-sm text-slate-600">กำลังอัปโหลดต่อ {restoredCount} ไฟล์ที่ค้างจากครั้งก่อน</p>
+            <p className="mb-1 text-sm text-ink/70">กำลังอัปโหลดต่อ {restoredCount} ไฟล์ที่ค้างจากครั้งก่อน</p>
           )}
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-ink/70">
             อัปโหลดแล้ว {doneCount}/{items.length} ไฟล์
-            {inFlight && <span className="text-slate-400"> · อย่าเพิ่งปิดหน้านี้</span>}
+            {inFlight && <span className="text-muted/80"> · อย่าเพิ่งปิดหน้านี้</span>}
           </p>
           {pendingItems.length > 0 && (
             <ul className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
               {pendingItems.map((item) => (
-                <li key={item.id} className="relative aspect-square overflow-hidden rounded-lg bg-slate-100">
+                <li key={item.id} className="relative aspect-square overflow-hidden rounded-lg bg-surface">
                   {item.previewUrl && (
                     // eslint-disable-next-line @next/next/no-img-element -- local blob preview
                     <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />

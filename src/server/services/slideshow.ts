@@ -25,6 +25,7 @@ export const DEFAULT_SLIDESHOW: SlideshowSettings = {
   showDate: true,
   showUploader: true,
   panelSide: "right",
+  qrSize: "medium",
   intervalSec: 7,
 };
 

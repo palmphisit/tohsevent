@@ -43,7 +43,7 @@ async function SlideshowLoader({ params, searchParams }: Pick<PageProps<"/e/[slu
       apiKey={apiKey}
       event={toPublicEvent(event)}
       settings={slideshowSettings(event)}
-      qrSvg={await qrSvg(guestUrl)}
+      qrSvg={await qrSvg(guestUrl, 1)}
       guestUrl={guestUrl}
       interactive
     />

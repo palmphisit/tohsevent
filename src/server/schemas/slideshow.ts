@@ -13,5 +13,6 @@ export const saveSlideshowSchema = z.object({
   showDate: z.boolean(),
   showUploader: z.boolean(),
   panelSide: z.enum(["left", "right"]),
+  qrSize: z.enum(["small", "medium", "large"]),
   intervalSec: z.number().int().min(L.intervalMin).max(L.intervalMax),
 });

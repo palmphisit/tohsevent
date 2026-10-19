@@ -62,6 +62,7 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
         style={style}
         data-theme={settings.theme}
         data-side={settings.panelSide}
+        data-qr={settings.qrSize ?? "medium"}
         data-paused={paused}
         data-idle={interactive && idle}
       >

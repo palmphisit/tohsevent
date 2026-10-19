@@ -38,7 +38,7 @@ async function SlideshowLoader({ params }: Pick<PageProps<"/dashboard/events/[id
         url={slideshowUrl(event)}
         event={toPublicEvent(event)}
         initial={slideshowSettings(event)}
-        qrSvg={await qrSvg(guestUrl)}
+        qrSvg={await qrSvg(guestUrl, 1)}
         guestUrl={guestUrl}
       />
     </>

@@ -149,11 +149,11 @@ export function ReportPhotoButton({
           <form
             onSubmit={submit}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md space-y-3 rounded-t-2xl bg-white p-5 text-slate-900 sm:rounded-2xl"
+            className="w-full max-w-md space-y-3 rounded-t-2xl bg-card p-5 text-ink sm:rounded-2xl"
           >
             <h2 className="text-lg font-semibold">แจ้งเจ้าภาพเกี่ยวกับรูปนี้</h2>
             {REASONS.map((r) => (
-              <label key={r.value} className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+              <label key={r.value} className="flex items-center gap-3 rounded-xl border border-line px-4 py-3 bg-transparent placeholder:text-muted">
                 <input
                   type="radio"
                   name="reason"
@@ -170,10 +170,10 @@ export function ReportPhotoButton({
               maxLength={500}
               rows={2}
               placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+              className="w-full rounded-xl border border-line px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 bg-transparent placeholder:text-muted"
             />
             <div className="flex gap-2">
-              <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl border border-slate-300 py-3">
+              <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl border border-line py-3 bg-transparent placeholder:text-muted">
                 ยกเลิก
               </button>
               <button

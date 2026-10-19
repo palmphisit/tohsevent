@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { planOf } from "@/server/models";
+import { appearanceOf } from "@/server/services/appearance";
 import { toBrandingEditorState } from "@/server/services/branding";
+import { toPublicEvent } from "@/server/services/events";
 import { loadHostEventPage } from "../load-event";
+import { AppearanceEditor } from "./appearance-editor";
 import { BrandingEditor } from "./branding-editor";
 
 export default function EventBrandingPage({ params }: PageProps<"/dashboard/events/[id]/branding">) {
@@ -26,6 +29,11 @@ async function BrandingLoader({ params }: Pick<PageProps<"/dashboard/events/[id]
         ← {event.title}
       </Link>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">ปรับแต่งหน้างาน</h1>
+      <AppearanceEditor eventId={id} event={toPublicEvent(event)} initial={appearanceOf(event)} />
+      <h2 className="mt-12 text-lg font-semibold tracking-tight">
+        แบรนด์ของงาน <span className="ml-1 rounded-full bg-primary px-2 py-0.5 align-middle text-xs font-medium text-white">Premium</span>
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">สีประจำงาน ฟอนต์ โลโก้ รูปปก ข้อความต้อนรับ และผู้สนับสนุน</p>
       {premium ? (
         <BrandingEditor eventId={id} title={event.title} initial={toBrandingEditorState(event)} />
       ) : (

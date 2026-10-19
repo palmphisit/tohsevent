@@ -3,6 +3,7 @@ import { collections } from "../db";
 import { HttpError } from "../http";
 import { planOf, type EventDoc } from "../models";
 import { emailEnabled } from "../email";
+import { appearanceOf, type Appearance } from "./appearance";
 import { toPublicBranding, type PublicBranding } from "./branding";
 
 /** Shape of an event that is safe to send to guests. */
@@ -19,6 +20,8 @@ export interface PublicEvent {
   branding: PublicBranding | null;
   /** Guests can ask for an email when official photos are ready. */
   notifyAvailable: boolean;
+  /** Theme, header and gallery style chosen by the host (every plan). */
+  appearance: Appearance;
   /** Video clip limits on this plan; null when only photos are allowed. */
   video: { maxBytes: number; maxDurationSec: number } | null;
 }
@@ -35,6 +38,7 @@ export function toPublicEvent(event: EventDoc): PublicEvent {
     branding: toPublicBranding(event),
     notifyAvailable: emailEnabled(),
     video: planOf(event).video,
+    appearance: appearanceOf(event),
   };
 }
 

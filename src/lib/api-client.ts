@@ -8,10 +8,11 @@ import type { InviteView, MemberView } from "@/server/services/members";
 import type { HostPhoto, HostPhotoView } from "@/server/services/moderation";
 import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
 import type { SlideshowSettings } from "@/server/services/slideshow";
+import type { Appearance } from "@/server/services/appearance";
 import type { DriveExportView } from "@/server/services/drive-export";
 import type { PreparedImage } from "./image";
 
-export type { DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
+export type { Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -292,4 +293,11 @@ export function runDriveExportStep(eventId: string, exportId: string) {
 
 export function cancelDriveExport(eventId: string, exportId: string) {
   return request<null>(`${hostBase(eventId)}/drive-export/${exportId}`, { method: "DELETE" });
+}
+
+export function saveAppearance(eventId: string, input: Appearance) {
+  return request<{ appearance: Appearance }>(`${hostBase(eventId)}/appearance`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
 }
