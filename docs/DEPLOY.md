@@ -176,6 +176,23 @@ gcloud run services update tohsevent --region asia-southeast1 \
   --update-secrets "STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest"
 ```
 
+**Live mode** ใช้ secret แยกจาก test เพื่อสลับกลับได้ทันที:
+`stripe-live-secret-key` (restricted key `rk_live_...` ที่มีสิทธิ์ Checkout Sessions + Refunds แบบ write
+หรือ `sk_live_...`) และ `stripe-live-webhook-secret` (endpoint live ส่ง 8 event เดียวกับข้างบน)
+
+```bash
+for s in stripe-live-secret-key stripe-live-webhook-secret; do
+  gcloud secrets add-iam-policy-binding "$s" --member="serviceAccount:tohsevent-run@tohs-event.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor" --condition=None
+done
+# เปิด live (ทำหลังบัญชี Stripe activate แล้วเท่านั้น: charges_enabled = true)
+gcloud run services update tohsevent --region asia-southeast1 \
+  --update-secrets "STRIPE_SECRET_KEY=stripe-live-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-live-webhook-secret:latest"
+# กลับไป test mode
+gcloud run services update tohsevent --region asia-southeast1 \
+  --update-secrets "STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest"
+```
+
 ทดสอบในเครื่อง: ใส่ `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` ใน `.env.local` แล้วใช้ Stripe CLI
 `stripe listen --forward-to localhost:3000/api/stripe/webhook` (CLI จะแสดง `whsec_...` สำหรับใช้ในเครื่อง)
 บัตรทดสอบ: `4242 4242 4242 4242`, วันหมดอายุในอนาคต, CVC อะไรก็ได้
