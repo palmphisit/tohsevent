@@ -126,6 +126,8 @@ export async function createUpgradeCheckout(host: Host, event: EventDoc, request
             },
           },
         ],
+        // Discount codes are created as promotion codes in the Stripe Dashboard and entered on the Checkout page.
+        allow_promotion_codes: true,
         customer_email: host.email,
         client_reference_id: payment._id.toHexString(),
         metadata: { paymentId: payment._id.toHexString(), eventId: event._id.toHexString(), toTier },
@@ -146,12 +148,13 @@ export async function createUpgradeCheckout(host: Host, event: EventDoc, request
   return { url: session.url };
 }
 
-const intentId = (value: string | { id: string } | null): string | null => (typeof value === "string" ? value : (value?.id ?? null));
+const intentId = (value: string | { id: string } | null | undefined): string | null =>
+  typeof value === "string" ? value : (value?.id ?? null);
 
 /** Gives back the payment's automatic refund once (safe to retry: Stripe idempotency + stored refund id). */
 async function issueAutoRefund(payment: PaymentDoc): Promise<void> {
   const refund = payment.autoRefund;
-  if (!refund || refund.stripeRefundId) return;
+  if (!refund || refund.stripeRefundId || refund.thb <= 0) return;
   const client = stripe();
   if (!client || !payment.stripePaymentIntentId) throw new Error(`cannot refund payment ${payment._id.toHexString()}`);
   const created = await client.refunds.create(
@@ -166,7 +169,7 @@ async function issueAutoRefund(payment: PaymentDoc): Promise<void> {
   await payments.updateOne(
     { _id: payment._id },
     {
-      $set: { "autoRefund.stripeRefundId": created.id, ...(refund.thb >= payment.amountThb ? { status: "refunded" } : {}) },
+      $set: { "autoRefund.stripeRefundId": created.id, ...(refund.thb >= (payment.paidThb ?? payment.amountThb) ? { status: "refunded" } : {}) },
       $max: { refundedThb: refund.thb },
     },
   );
@@ -186,7 +189,8 @@ async function issueAutoRefund(payment: PaymentDoc): Promise<void> {
  * part-way leaves the payment pending and the next retry applies it.
  */
 export async function fulfillCheckoutSession(session: Stripe.Checkout.Session): Promise<"applied" | "ignored"> {
-  if (session.payment_status !== "paid") return "ignored";
+  // "no_payment_required": a discount code brought the total to ฿0.
+  if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return "ignored";
   const paymentId = session.metadata?.paymentId;
   if (!paymentId || !ObjectId.isValid(paymentId)) return "ignored";
 
@@ -198,24 +202,39 @@ export async function fulfillCheckoutSession(session: Stripe.Checkout.Session): 
     await issueAutoRefund(existing);
     return "ignored";
   }
-  if (session.currency !== "thb" || session.amount_total !== existing.amountThb * 100) {
+  const subtotal = session.amount_subtotal ?? -1;
+  const total = session.amount_total ?? -1;
+  // The list price must match; a discount code may only lower what was paid.
+  if (session.currency !== "thb" || subtotal !== existing.amountThb * 100 || total < 0 || total > subtotal) {
     console.error("stripe checkout amount mismatch", paymentId, session.id, session.currency, session.amount_total);
     await audit({
       eventId: existing.eventId,
       actor: { type: "system", id: "stripe" },
       action: "payment.amount_mismatch",
       target: existing._id,
-      meta: { expectedThb: existing.amountThb, currency: session.currency, amountTotal: session.amount_total, sessionId: session.id },
+      meta: { expectedThb: existing.amountThb, currency: session.currency, amountSubtotal: subtotal, amountTotal: total, sessionId: session.id },
     });
     return "ignored";
   }
 
+  const paidThb = total / 100;
+  const discountThb = (subtotal - total) / 100;
+  const promotionCode = session.discounts?.[0]?.promotion_code;
   const now = new Date();
   const result = await mongoClient().withSession((dbSession) =>
     dbSession.withTransaction(async () => {
       const payment = await payments.findOneAndUpdate(
         { _id: existing._id, status: "pending" },
-        { $set: { status: "paid", paidAt: now, stripeSessionId: session.id, stripePaymentIntentId: intentId(session.payment_intent) } },
+        {
+          $set: {
+            status: "paid",
+            paidAt: now,
+            stripeSessionId: session.id,
+            stripePaymentIntentId: intentId(session.payment_intent),
+            paidThb,
+            ...(discountThb > 0 ? { discount: { thb: discountThb, promotionCodeId: intentId(promotionCode) } } : {}),
+          },
+        },
         { returnDocument: "after", session: dbSession },
       );
       if (!payment) return null; // applied by a concurrent call
@@ -223,7 +242,8 @@ export async function fulfillCheckoutSession(session: Stripe.Checkout.Session): 
       const event = await events.findOne({ _id: payment.eventId }, { session: dbSession });
       // A deleted album gains nothing from an upgrade: give the money back.
       const costThb = event && !event.purgedAt ? upgradeCostNowThb(event, payment) : 0;
-      const refundThb = Math.max(0, payment.amountThb - costThb);
+      // Give back the share of what was paid that the upgrade no longer covers (keeps a discount's ratio).
+      const refundThb = costThb >= payment.amountThb ? 0 : Math.round((paidThb * (payment.amountThb - costThb)) / payment.amountThb);
       if (refundThb > 0) {
         payment.autoRefund = { thb: refundThb, reason: costThb > 0 ? "price_changed" : "superseded", stripeRefundId: null };
         await payments.updateOne({ _id: payment._id }, { $set: { autoRefund: payment.autoRefund } }, { session: dbSession });
@@ -257,7 +277,7 @@ export async function fulfillCheckoutSession(session: Stripe.Checkout.Session): 
       actor: { type: "system", id: "stripe" },
       action: "plan.upgrade",
       target: payment._id,
-      meta: { fromTier: planOf(event).tier, toTier: payment.toTier, amountThb: payment.amountThb },
+      meta: { fromTier: planOf(event).tier, toTier: payment.toTier, amountThb: payment.amountThb, paidThb, discountThb },
     });
   }
   await issueAutoRefund(payment);

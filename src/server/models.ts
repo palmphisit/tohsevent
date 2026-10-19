@@ -229,7 +229,12 @@ export interface PaymentDoc {
   toTier: PlanTier;
   /** What a Custom package was bought with (toTier "custom"). */
   custom?: CustomPlanConfig;
+  /** List price of this upgrade (before any discount code). */
   amountThb: number;
+  /** What the customer actually paid (after a discount code); missing on older payments = amountThb. */
+  paidThb?: number;
+  /** Discount from a Stripe promotion code entered at checkout. */
+  discount?: { thb: number; promotionCodeId: string | null };
   provider: "stripe";
   stripeSessionId: string | null;
   /** Set when the checkout is paid; refunds and disputes arrive keyed by it. */

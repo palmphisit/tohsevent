@@ -110,7 +110,7 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
       />
       {!canPay && <p className="mt-4 text-sm text-slate-500">ระบบชำระเงินยังไม่เปิดใช้งานใน environment นี้</p>}
       <p className="mt-4 text-xs text-slate-500">
-        ชำระครั้งเดียวต่องาน ผ่านบัตรเครดิต/เดบิต หรือ PromptPay อายุอัลบั้มนับจากวันจัดงาน (หรือจากวันอัปเกรด ถ้างานผ่านไปแล้ว)
+        ชำระครั้งเดียวต่องาน ผ่านบัตรเครดิต/เดบิต หรือ PromptPay มีโค้ดส่วนลดกรอกได้ในหน้าชำระเงิน อายุอัลบั้มนับจากวันจัดงาน (หรือจากวันอัปเกรด ถ้างานผ่านไปแล้ว)
       </p>
     </>
   );

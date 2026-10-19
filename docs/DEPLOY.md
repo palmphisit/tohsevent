@@ -176,6 +176,13 @@ gcloud run services update tohsevent --region asia-southeast1 \
   --update-secrets "STRIPE_SECRET_KEY=stripe-secret-key:latest,STRIPE_WEBHOOK_SECRET=stripe-webhook-secret:latest"
 ```
 
+**โค้ดส่วนลด:** หน้า Checkout เปิดช่อง "Add promotion code" ไว้แล้ว สร้างคูปองใน Stripe Dashboard →
+Product catalog → Coupons (ส่วนลด % หรือจำนวนเงิน THB) แล้วเพิ่ม Promotion code (เช่น `WEDDING20`)
+ตั้งวันหมดอายุ จำนวนครั้งที่ใช้ได้ หรือ "First-time order only" ได้ที่ promotion code นั้น
+ไม่ต้องจำกัดสินค้า (ราคาแพ็กเกจถูกสร้างตอนจ่าย) ส่วนลด 100% ใช้ได้ (ยอด ฿0 ระบบอัปเกรดให้เลย)
+ระบบบันทึกยอดที่จ่ายจริง (`paidThb`) และส่วนลดไว้ที่ payment ราคาส่วนต่างตอนอัปเกรดครั้งถัดไปคิดจากราคาเต็ม
+ของแพ็กเกจเดิม ถ้าต้องคืนเงินอัตโนมัติ ระบบคืนตามสัดส่วนของยอดที่จ่ายจริง
+
 **Live mode** ใช้ secret แยกจาก test เพื่อสลับกลับได้ทันที:
 `stripe-live-secret-key` (restricted key `rk_live_...` ที่มีสิทธิ์ Checkout Sessions + Refunds แบบ write
 หรือ `sk_live_...`) และ `stripe-live-webhook-secret` (endpoint live ส่ง 8 event เดียวกับข้างบน)
