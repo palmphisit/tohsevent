@@ -95,14 +95,14 @@ export async function listSlideshowPhotos(
 }
 
 // ---------------------------------------------------------------------------
-// Instagram share: a guest sends one of their own photos with their @handle, and the venue
-// screen pops it up in the middle for a few seconds.
+// Instagram share: a guest uploads a photo at the moment they share it (it joins the album like
+// any upload) with their @handle, and the venue screen pops it up once in the middle.
 
 /** Instagram usernames: letters, digits, "." and "_", up to 30 characters. */
 export const INSTAGRAM_HANDLE = /^(?!.*\.\.)(?!\.)[A-Za-z0-9._]{1,30}(?<!\.)$/;
 /** One send per guest per this many seconds, so a queue of popups stays fair. */
 export const SHOUTOUT_COOLDOWN_SEC = 30;
-/** How far back a screen looks for sends (a reloaded screen does not replay older ones). */
+/** How far back a screen looks for sends (covers a queue of popups and photos approved a bit later). */
 const SHOUTOUT_WINDOW_MS = 10 * 60 * 1000;
 
 export interface Shoutout {
@@ -131,17 +131,6 @@ export async function listShoutouts(event: EventDoc, now = new Date()): Promise<
   }));
 }
 
-/** The guest's own photos they can send (newest first). */
-export async function shareablePhotos(event: EventDoc, guestId: ObjectId): Promise<PublicPhoto[]> {
-  const { photos } = await collections();
-  const docs = await photos
-    .find({ eventId: event._id, status: "ready", "uploader.id": guestId })
-    .sort({ _id: -1 })
-    .limit(60)
-    .toArray();
-  return docs.map((doc) => toPublicPhoto(doc, event, { viewerId: guestId }));
-}
-
 export async function sendShoutout(
   event: EventDoc,
   guestId: ObjectId,
@@ -159,8 +148,15 @@ export async function sendShoutout(
     "shoutout.at": { $gt: new Date(now.getTime() - SHOUTOUT_COOLDOWN_SEC * 1000) },
   });
   if (recent) throw new HttpError(429, "ig_share_cooldown", "Please wait a moment before sharing again");
+  // One popup per photo. "hidden" covers photos held for review: they pop up once approved.
   const result = await photos.updateOne(
-    { _id: photoId, eventId: event._id, status: "ready", "uploader.id": guestId },
+    {
+      _id: photoId,
+      eventId: event._id,
+      "uploader.id": guestId,
+      status: { $in: ["ready", "hidden"] },
+      shoutout: { $exists: false },
+    },
     { $set: { shoutout: { instagram, at: now } } },
   );
   if (result.matchedCount === 0) throw new HttpError(404, "photo_not_found", "Photo not found");

@@ -8,8 +8,6 @@ const POLL_LIMIT = 60;
 const POLL_MS = 10_000;
 /** Faster while Instagram share is on, so a guest sees their popup a few seconds after sending. */
 const POLL_MS_SHOUTOUTS = 4_000;
-/** A screen that (re)opens only plays sends from the last minute. */
-const SHOUTOUT_REPLAY_MS = 60_000;
 
 /**
  * Photos for the slideshow, newest first, kept fresh by polling. Uploads that arrive after
@@ -30,13 +28,13 @@ export function useSlideshowPhotos(
   const freshRef = useRef<string[]>([]);
   const shoutoutQueue = useRef<Shoutout[]>([]);
   const savedRef = useRef<SlideshowSettings | null>(null);
-  const shoutoutSeen = useRef(new Set<string>());
 
   useEffect(() => {
     let cancelled = false;
     let first = true;
     let savedSources: string | null = null;
     let firstShoutouts = true;
+    const shoutoutPhotos = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     function apply(next: PublicPhoto[]) {
@@ -69,17 +67,18 @@ export function useSlideshowPhotos(
       const kept = photosRef.current.filter((p) => ids.has(p.id) || p.id < oldest);
       const seen = new Set(kept.map((p) => p.id));
       const added = page.items.filter((p) => !seen.has(p.id));
-      if (added.length) freshRef.current.push(...added.map((p) => p.id).reverse());
+      if (added.length) freshRef.current.push(...added.map((p) => p.id).filter((id) => !shoutoutPhotos.has(id)).reverse());
       if (added.length || kept.length !== photosRef.current.length) apply([...added, ...kept]);
     }
 
+    // Each send pops up once: sends that already existed when the screen opened are not replayed,
+    // and the photo does not show again as a "new upload" slide right after its popup.
     function queueShoutouts(list: Shoutout[]) {
-      const replayFrom = Date.now() - SHOUTOUT_REPLAY_MS;
       for (const item of list) {
-        const id = `${item.photo.id}@${item.at}`;
-        if (shoutoutSeen.current.has(id)) continue;
-        shoutoutSeen.current.add(id);
-        if (!firstShoutouts || Date.parse(item.at) >= replayFrom) shoutoutQueue.current.push(item);
+        if (shoutoutPhotos.has(item.photo.id)) continue;
+        shoutoutPhotos.add(item.photo.id);
+        freshRef.current = freshRef.current.filter((id) => id !== item.photo.id);
+        if (!firstShoutouts) shoutoutQueue.current.push(item);
       }
       firstShoutouts = false;
     }

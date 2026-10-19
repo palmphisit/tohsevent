@@ -271,10 +271,6 @@ export function listSlideshowPhotos(
   });
 }
 
-export function listShareablePhotos(slug: string) {
-  return request<{ items: PublicPhoto[]; cooldownSec: number }>(`${base(slug)}/instagram`, { cache: "no-store" });
-}
-
 export function sendInstagramShare(slug: string, input: { photoId: string; instagram: string }) {
   return request<{ instagram: string }>(`${base(slug)}/instagram`, { method: "POST", body: JSON.stringify(input) });
 }

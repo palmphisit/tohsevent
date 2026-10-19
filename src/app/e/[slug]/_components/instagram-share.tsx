@@ -1,56 +1,63 @@
 "use client";
 
-import { Check, Loader2, MonitorPlay, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Camera, ImagePlus, Loader2, MonitorPlay, RefreshCw, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { InstagramIcon } from "@/components/instagram-icon";
-import { ApiError, listShareablePhotos, sendInstagramShare, type GuestSession, type PublicPhoto } from "@/lib/api-client";
+import { uploadErrorMessage, uploadSinglePhoto, type UploadTarget } from "@/components/uploader";
+import { ApiError, sendInstagramShare, type PublicPhoto } from "@/lib/api-client";
 import { showError } from "@/lib/error-popup";
 import { useLocale } from "@/lib/use-locale";
 
 const T = {
   en: {
     title: "Put your photo on the big screen",
-    text: "Pick one of your photos, add your Instagram and it pops up on the venue screen.",
+    text: "Take or choose a photo, add your Instagram and it pops up on the venue screen.",
     open: "Share to the screen",
     sheetTitle: "Share to the big screen",
-    pick: "Choose one of your photos",
-    none: "Upload a photo first, then come back to share it.",
+    choose: "Choose a photo",
+    take: "Take a photo",
+    change: "Change photo",
     handle: "Your Instagram",
-    note: "Your photo and @ will be shown on the venue screen for everyone at the event.",
+    note: "The photo is added to the event album and pops up once on the venue screen with your @ for everyone to see.",
     send: "Share to the screen",
+    uploading: (pct: number) => `Uploading ${pct}%`,
     sending: "Sharing…",
     doneTitle: "Look at the screen!",
     doneText: (h: string) => `Your photo with @${h} pops up in a few seconds.`,
+    doneReview: (h: string) => `Your photo with @${h} pops up once the organizer has checked it.`,
+    another: "Share another",
     close: "Close",
     errors: {
       invalid_instagram: "Please enter a valid Instagram username",
       ig_share_cooldown: "You just shared. Please wait a moment and try again.",
       ig_share_off: "Sharing to the screen is closed right now",
       photo_not_found: "This photo is no longer available",
-      consent_declined: "Please accept the policy first",
     } as Record<string, string>,
     failed: "Couldn't share. Please try again.",
   },
   th: {
     title: "แชร์รูปขึ้นจอใหญ่ในงาน",
-    text: "เลือกรูปของคุณ ใส่ Instagram แล้วรูปจะเด้งขึ้นกลางจอในงาน",
+    text: "ถ่ายหรือเลือกรูป ใส่ Instagram แล้วรูปจะเด้งขึ้นกลางจอในงาน",
     open: "แชร์ขึ้นจอ",
     sheetTitle: "แชร์ขึ้นจอใหญ่",
-    pick: "เลือกรูปของคุณ 1 รูป",
-    none: "อัปโหลดรูปก่อน แล้วกลับมาแชร์ขึ้นจอได้เลย",
+    choose: "เลือกรูป",
+    take: "ถ่ายรูป",
+    change: "เปลี่ยนรูป",
     handle: "Instagram ของคุณ",
-    note: "รูปและ @ ของคุณจะแสดงบนจอในงานให้ทุกคนเห็น",
+    note: "รูปนี้จะเข้าอัลบั้มของงานด้วย และเด้งขึ้นจอพร้อม @ ของคุณ 1 ครั้งให้ทุกคนในงานเห็น",
     send: "แชร์ขึ้นจอ",
+    uploading: (pct: number) => `กำลังอัปโหลด ${pct}%`,
     sending: "กำลังแชร์…",
     doneTitle: "ดูที่จอได้เลย!",
     doneText: (h: string) => `รูปของคุณพร้อม @${h} จะเด้งขึ้นจอในไม่กี่วินาที`,
+    doneReview: (h: string) => `รูปของคุณพร้อม @${h} จะขึ้นจอหลังผู้จัดงานตรวจรูปแล้ว`,
+    another: "แชร์อีกรูป",
     close: "ปิด",
     errors: {
       invalid_instagram: "กรุณากรอกชื่อผู้ใช้ Instagram ให้ถูกต้อง",
       ig_share_cooldown: "เพิ่งแชร์ไป รอสักครู่แล้วลองอีกครั้ง",
       ig_share_off: "ตอนนี้ปิดการแชร์ขึ้นจอแล้ว",
       photo_not_found: "รูปนี้ไม่มีแล้ว",
-      consent_declined: "ต้องยอมรับนโยบายก่อน",
     } as Record<string, string>,
     failed: "แชร์ไม่สำเร็จ ลองอีกครั้ง",
   },
@@ -75,23 +82,22 @@ function savedHandle(): string {
   }
 }
 
-/** Guest side of "Instagram share": pick an own photo, enter @, pop it up on the slideshow. */
-export function InstagramShare({ slug, ensureSession }: { slug: string; ensureSession: () => Promise<GuestSession> }) {
+/**
+ * Guest side of "Instagram share": take or choose a photo right now, enter @, and it is
+ * uploaded to the album like any other photo and popped up once on the slideshow.
+ */
+export function InstagramShare({
+  slug,
+  target,
+  onUploaded,
+}: {
+  slug: string;
+  /** The guest page's upload target (joins the event, asks for consent first). */
+  target: UploadTarget;
+  onUploaded: (photo: PublicPhoto) => void;
+}) {
   const t = T[useLocale()];
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  async function start() {
-    setLoading(true);
-    try {
-      await ensureSession();
-      setOpen(true);
-    } catch (err) {
-      showError((err instanceof ApiError && t.errors[err.code]) || t.failed);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return (
     <>
@@ -107,69 +113,99 @@ export function InstagramShare({ slug, ensureSession }: { slug: string; ensureSe
         </div>
         <button
           type="button"
-          onClick={start}
-          disabled={loading}
+          onClick={() => setOpen(true)}
           className="flex w-full items-center justify-center gap-2 rounded-b-[calc(1.5rem-2px)] px-4 py-3 text-sm font-semibold text-white"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MonitorPlay className="h-4 w-4" />} {t.open}
+          <MonitorPlay className="h-4 w-4" /> {t.open}
         </button>
       </section>
-      {open && <ShareSheet slug={slug} onClose={() => setOpen(false)} />}
+      {open && <ShareSheet slug={slug} target={target} onUploaded={onUploaded} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function ShareSheet({ slug, onClose }: { slug: string; onClose: () => void }) {
-  const t = T[useLocale()];
-  const [photos, setPhotos] = useState<PublicPhoto[] | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+type Step = { kind: "form" } | { kind: "uploading"; progress: number } | { kind: "sending" } | { kind: "done"; handle: string; review: boolean };
+
+function ShareSheet({
+  slug,
+  target,
+  onUploaded,
+  onClose,
+}: {
+  slug: string;
+  target: UploadTarget;
+  onUploaded: (photo: PublicPhoto) => void;
+  onClose: () => void;
+}) {
+  const locale = useLocale();
+  const t = T[locale];
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [handle, setHandle] = useState(savedHandle);
-  const [sending, setSending] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
-  const failedText = t.failed;
+  const [step, setStep] = useState<Step>({ kind: "form" });
+  // Set once the photo is in the album: a failed share is retried without uploading again.
+  const [uploaded, setUploaded] = useState<PublicPhoto | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    listShareablePhotos(slug)
-      .then(({ items }) => {
-        if (cancelled) return;
-        setPhotos(items);
-        setSelected(items[0]?.id ?? null);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setPhotos([]);
-        showError(failedText);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [slug, failedText]);
+    if (!preview) return;
+    return () => URL.revokeObjectURL(preview);
+  }, [preview]);
+
+  function pick(input: HTMLInputElement) {
+    const next = input.files?.[0];
+    input.value = "";
+    if (!next) return;
+    setFile(next);
+    setPreview(URL.createObjectURL(next));
+    setUploaded(null);
+  }
+
+  function reset() {
+    setFile(null);
+    setPreview(null);
+    setUploaded(null);
+    setStep({ kind: "form" });
+  }
 
   const clean = cleanHandle(handle);
   const valid = HANDLE.test(clean);
+  const busy = step.kind === "uploading" || step.kind === "sending";
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
-    if (!selected || !valid) return;
-    setSending(true);
+    if (!file || !valid || busy) return;
+    let photo = uploaded;
     try {
-      const { instagram } = await sendInstagramShare(slug, { photoId: selected, instagram: clean });
+      if (!photo) {
+        setStep({ kind: "uploading", progress: 0 });
+        photo = await uploadSinglePhoto(target, file, (progress) => setStep({ kind: "uploading", progress }));
+        setUploaded(photo);
+        onUploaded(photo);
+      }
+    } catch (err) {
+      setStep({ kind: "form" });
+      showError(uploadErrorMessage(err, locale));
+      return;
+    }
+    try {
+      setStep({ kind: "sending" });
+      const { instagram } = await sendInstagramShare(slug, { photoId: photo.id, instagram: clean });
       try {
         localStorage.setItem(HANDLE_KEY, instagram);
       } catch {
         // Private mode: the guest types it again next time.
       }
-      setDone(instagram);
+      setStep({ kind: "done", handle: instagram, review: !!photo.pendingReview });
     } catch (err) {
+      setStep({ kind: "form" });
       showError((err instanceof ApiError && t.errors[err.code]) || t.failed);
-    } finally {
-      setSending(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" onClick={busy ? undefined : onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -181,58 +217,63 @@ function ShareSheet({ slug, onClose }: { slug: string; onClose: () => void }) {
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <InstagramIcon className="h-5 w-5 text-pink-500" /> {t.sheetTitle}
           </h2>
-          <button type="button" onClick={onClose} aria-label={t.close} className="rounded-full p-1.5 text-muted hover:bg-surface">
+          <button type="button" onClick={onClose} disabled={busy} aria-label={t.close} className="rounded-full p-1.5 text-muted hover:bg-surface">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {done ? (
+        {step.kind === "done" ? (
           <div className="flex flex-col items-center py-8 text-center">
             <span className="flex h-16 w-16 animate-bounce items-center justify-center rounded-full bg-gradient-to-tr from-amber-300 via-pink-500 to-violet-600 text-3xl">
               🎉
             </span>
             <p className="mt-4 text-xl font-semibold">{t.doneTitle}</p>
-            <p className="mt-1 text-sm text-muted">{t.doneText(done)}</p>
-            <button type="button" onClick={onClose} className="mt-6 rounded-xl bg-surface px-5 py-2.5 text-sm font-medium">
-              {t.close}
-            </button>
+            <p className="mt-1 text-sm text-muted">{step.review ? t.doneReview(step.handle) : t.doneText(step.handle)}</p>
+            <div className="mt-6 flex gap-2">
+              <button type="button" onClick={reset} className="rounded-xl bg-surface px-5 py-2.5 text-sm font-medium">
+                {t.another}
+              </button>
+              <button type="button" onClick={onClose} className="rounded-xl bg-surface px-5 py-2.5 text-sm font-medium">
+                {t.close}
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={send} className="mt-4 space-y-4">
-            <div>
-              <p className="mb-2 text-sm font-medium">{t.pick}</p>
-              {photos === null ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {Array.from({ length: 6 }, (_, i) => (
-                    <div key={i} className="aspect-square animate-pulse rounded-xl bg-surface" />
-                  ))}
-                </div>
-              ) : photos.length === 0 ? (
-                <p className="rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">{t.none}</p>
-              ) : (
-                <div className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto p-0.5">
-                  {photos.map((photo) => (
-                    <button
-                      key={photo.id}
-                      type="button"
-                      onClick={() => setSelected(photo.id)}
-                      aria-pressed={selected === photo.id}
-                      className={`relative aspect-square overflow-hidden rounded-xl transition ${
-                        selected === photo.id ? "ring-3 ring-pink-500 ring-offset-2 ring-offset-card" : "opacity-80"
-                      }`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN */}
-                      <img src={photo.thumbUrl} alt="" className="h-full w-full object-cover" />
-                      {selected === photo.id && (
-                        <span className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-pink-500 text-white">
-                          <Check className="h-4 w-4" />
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <input ref={galleryRef} type="file" accept="image/*" hidden onChange={(e) => pick(e.currentTarget)} />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => pick(e.currentTarget)} />
+            {preview ? (
+              <div className="relative overflow-hidden rounded-2xl bg-surface">
+                {/* eslint-disable-next-line @next/next/no-img-element -- local preview of the picked file */}
+                <img src={preview} alt="" className="mx-auto max-h-72 w-full object-contain" />
+                {!busy && (
+                  <button
+                    type="button"
+                    onClick={() => galleryRef.current?.click()}
+                    className="absolute right-2 bottom-2 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" /> {t.change}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => galleryRef.current?.click()}
+                  className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-pink-300 bg-pink-50/50 text-sm font-medium text-pink-600"
+                >
+                  <ImagePlus className="h-7 w-7" /> {t.choose}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cameraRef.current?.click()}
+                  className="flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-300 bg-violet-50/50 text-sm font-medium text-violet-600"
+                >
+                  <Camera className="h-7 w-7" /> {t.take}
+                </button>
+              </div>
+            )}
 
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium">{t.handle}</span>
@@ -247,6 +288,7 @@ function ShareSheet({ slug, onClose }: { slug: string; onClose: () => void }) {
                   autoCorrect="off"
                   spellCheck={false}
                   autoComplete="off"
+                  disabled={busy}
                   placeholder="your.instagram"
                   className="w-full bg-transparent px-1 py-3 text-base outline-none placeholder:text-muted"
                 />
@@ -256,11 +298,11 @@ function ShareSheet({ slug, onClose }: { slug: string; onClose: () => void }) {
 
             <button
               type="submit"
-              disabled={!selected || !valid || sending}
+              disabled={!file || !valid || busy}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-tr from-amber-400 via-pink-500 to-violet-600 px-4 py-3.5 font-semibold text-white shadow-lg transition active:scale-[0.99] disabled:opacity-40"
             >
-              {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <MonitorPlay className="h-5 w-5" />}
-              {sending ? t.sending : t.send}
+              {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <MonitorPlay className="h-5 w-5" />}
+              {step.kind === "uploading" ? t.uploading(Math.round(step.progress * 100)) : step.kind === "sending" ? t.sending : t.send}
             </button>
           </form>
         )}

@@ -271,7 +271,9 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
         </p>
       )}
 
-      {event.instagramShare && <InstagramShare slug={event.slug} ensureSession={ensureSession} />}
+      {event.instagramShare && event.guestUpload && (
+        <InstagramShare slug={event.slug} target={uploadTarget} onUploaded={onUploaded} />
+      )}
 
       {event.notifyAvailable && (
         <NotifyMe

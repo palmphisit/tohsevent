@@ -220,6 +220,24 @@ async function uploadCopies(target: UploadTarget, item: QueueItem, update: (patc
   return target.complete(reservation.data.photoId);
 }
 
+/** One photo through the same pipeline as the uploader (resize, reserve, PUT, complete), without the queue UI. */
+export async function uploadSinglePhoto(
+  target: UploadTarget,
+  file: Blob,
+  onProgress?: (fraction: number) => void,
+): Promise<PublicPhoto> {
+  await target.prepare?.();
+  const image = await prepareImage(file, { watermark: target.watermark });
+  const reservation = await target.reserve(image);
+  await putToStorage(reservation, image, onProgress);
+  return target.complete(reservation.photoId);
+}
+
+/** Uploader error text for a code, for callers that use uploadSinglePhoto. */
+export function uploadErrorMessage(error: unknown, locale: keyof typeof T): string {
+  return errorMessage(error, T[locale]);
+}
+
 /** Multi-file photo uploader: resizes in the browser and uploads straight to storage. */
 export function Uploader({
   target,
