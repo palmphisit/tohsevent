@@ -73,6 +73,13 @@ export async function getObjectStream(key: string): Promise<ReadableStream<Uint8
   return res.Body.transformToWebStream() as ReadableStream<Uint8Array>;
 }
 
+/** Bytes `start`..`end` (inclusive) of an object, from the public bucket or another one (originals). */
+export async function readRange(key: string, start: number, end: number, bucket = env().R2_BUCKET): Promise<Uint8Array> {
+  const res = await s3().send(new GetObjectCommand({ Bucket: bucket, Key: key, Range: `bytes=${start}-${end}` }));
+  if (!res.Body) throw new Error(`Empty object body: ${key}`);
+  return res.Body.transformToByteArray();
+}
+
 /** Server-side upload of a small object (e.g. poster frames cut on the server). */
 export async function putObject(key: string, body: Uint8Array, contentType: string): Promise<void> {
   await s3().send(

@@ -19,6 +19,32 @@ function createAuth() {
     trustedOrigins: [e.APP_ORIGIN, ...e.EXTRA_ORIGINS],
     database: mongodbAdapter(database(), { client: mongoClient() }),
     emailAndPassword: { enabled: true, minPasswordLength: 8, autoSignIn: true },
+    ...(e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET
+      ? {
+          socialProviders: {
+            google: {
+              clientId: e.GOOGLE_CLIENT_ID,
+              clientSecret: e.GOOGLE_CLIENT_SECRET,
+              // Offline access + consent so Google returns a refresh token: Drive transfers run
+              // for a long time and need to renew the access token.
+              accessType: "offline",
+              prompt: "select_account consent",
+            },
+          },
+        }
+      : {}),
+    account: {
+      // Google refresh tokens grant Drive access: never store them in plain text.
+      encryptOAuthTokens: true,
+      accountLinking: {
+        // A Google sign-in joins an existing account with the same (Google-verified) email only
+        // when that account's email is verified too; password accounts link Google explicitly
+        // from the dashboard instead (Better Auth default, guards against pre-registration takeover).
+        trustedProviders: ["google"],
+        // Linking is explicit and signed-in: the Drive account may be a different Gmail.
+        allowDifferentEmails: true,
+      },
+    },
     session: {
       expiresIn: 60 * 60 * 24 * 30,
       updateAge: 60 * 60 * 24,

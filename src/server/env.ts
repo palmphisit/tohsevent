@@ -31,6 +31,11 @@ const schema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
   /** "vision" = hide photos Google Cloud Vision SafeSearch flags until the host reviews them. */
   AUTO_MODERATION: z.enum(["off", "vision"]).default("off"),
+  /** Google OAuth web client (Sign in with Google + Drive transfer). Both hidden when unset. */
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  /** Google API host; overridden only by local tests that run a stand-in Drive. */
+  GOOGLE_API_BASE: z.url().default("https://www.googleapis.com"),
   /** ffmpeg binary used to cut video poster frames (installed in the Docker image). */
   FFMPEG_PATH: z.string().default("ffmpeg"),
   /** Resend API key (re_...). Email features (guest notifications, expiry reminders) are hidden when unset. */

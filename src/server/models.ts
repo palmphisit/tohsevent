@@ -40,6 +40,32 @@ export interface EventDoc {
 
 export type MemberRole = "photographer";
 
+/** Album transfer to the user's Google Drive, run in short steps the dashboard drives. */
+export interface DriveExportDoc {
+  _id: ObjectId;
+  eventId: ObjectId;
+  /** Whose Google Drive (and token) the files go to. */
+  userId: ObjectId;
+  sources: PhotoSource[];
+  folder: { id: string; url: string };
+  subfolders: Partial<Record<PhotoSource, string>>;
+  status: "running" | "needs_auth" | "done" | "canceled";
+  total: number;
+  done: number;
+  failed: number;
+  bytes: number;
+  /** Photos are sent in _id order; everything up to this id is finished. */
+  cursor: ObjectId | null;
+  /** A large file part-way through a resumable upload. */
+  current: { photoId: ObjectId; uploadUrl: string; offset: number; size: number } | null;
+  lastError: string | null;
+  /** One step at a time per export (a second tab cannot double-send files). */
+  lockedUntil: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  finishedAt: Date | null;
+}
+
 export interface EventMember {
   userId: ObjectId;
   role: MemberRole;

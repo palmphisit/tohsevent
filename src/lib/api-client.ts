@@ -8,9 +8,10 @@ import type { InviteView, MemberView } from "@/server/services/members";
 import type { HostPhoto, HostPhotoView } from "@/server/services/moderation";
 import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
 import type { SlideshowSettings } from "@/server/services/slideshow";
+import type { DriveExportView } from "@/server/services/drive-export";
 import type { PreparedImage } from "./image";
 
-export type { SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
+export type { DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -268,4 +269,27 @@ export function saveSlideshow(eventId: string, input: SlideshowSettings) {
     method: "PUT",
     body: JSON.stringify(input),
   });
+}
+
+// ---- Google Drive transfer ----
+
+export function getDriveExport(eventId: string) {
+  return request<{ google: { enabled: boolean; connected: boolean }; export: DriveExportView | null }>(
+    `${hostBase(eventId)}/drive-export`,
+  );
+}
+
+export function startDriveExport(eventId: string, sources: PublicPhoto["source"][]) {
+  return request<{ export: DriveExportView }>(`${hostBase(eventId)}/drive-export`, {
+    method: "POST",
+    body: JSON.stringify({ sources }),
+  });
+}
+
+export function runDriveExportStep(eventId: string, exportId: string) {
+  return request<{ export: DriveExportView }>(`${hostBase(eventId)}/drive-export/${exportId}/step`, { method: "POST" });
+}
+
+export function cancelDriveExport(eventId: string, exportId: string) {
+  return request<null>(`${hostBase(eventId)}/drive-export/${exportId}`, { method: "DELETE" });
 }

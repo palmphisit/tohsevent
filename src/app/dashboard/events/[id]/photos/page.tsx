@@ -7,6 +7,7 @@ import { countOpenReports } from "@/server/services/moderation";
 import { originalsAvailable } from "@/server/services/originals";
 import { pendingNotificationCount } from "@/server/services/notifications";
 import { loadEventPageForMember } from "../load-event";
+import { DriveExportPanel } from "./drive-export-panel";
 import { NotifyGuestsButton } from "./notify-guests-button";
 import { PhotoModeration } from "./photo-moderation";
 
@@ -37,6 +38,7 @@ async function PhotosLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/p
       </Link>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">จัดการรูปภาพ</h1>
       <DownloadPanel eventId={id} counts={counts} />
+      <DriveExportPanel eventId={id} counts={counts} />
       {waitingForEmail !== null && <NotifyGuestsButton eventId={id} pending={waitingForEmail} />}
       <PhotoModeration
         eventId={id}

@@ -2,6 +2,9 @@ import { Check } from "lucide-react";
 import { Suspense } from "react";
 import { BrandLogo, BrandMark } from "@/components/brand";
 import { LegalFooter } from "@/components/legal-footer";
+import { connection } from "next/server";
+import { googleEnabled } from "@/server/google";
+import { GoogleSignIn } from "./google-sign-in";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: { absolute: "เข้าสู่ระบบ · Tohs Event" }, robots: { index: false, follow: false } };
@@ -40,6 +43,9 @@ export default function LoginPage() {
             <h1 className="text-2xl font-semibold tracking-tight">ยินดีต้อนรับ</h1>
             <p className="mt-1 text-sm text-slate-500">เข้าสู่ระบบหรือสร้างบัญชีเพื่อจัดการงานของคุณ</p>
             <Suspense>
+              <GoogleSlot />
+            </Suspense>
+            <Suspense>
               <LoginForm />
             </Suspense>
           </div>
@@ -48,4 +54,10 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+/** Shown only when Google OAuth is configured on the server (read at request time). */
+async function GoogleSlot() {
+  await connection();
+  return googleEnabled() ? <GoogleSignIn /> : null;
 }

@@ -196,6 +196,36 @@ gcloud projects add-iam-policy-binding tohs-event --member="serviceAccount:tohse
 gcloud run services update tohsevent --region asia-southeast1 --update-env-vars AUTO_MODERATION=vision
 ```
 
+### Google: เข้าสู่ระบบด้วย Google + โอนไฟล์ไป Google Drive
+
+ใช้ OAuth client เดียวกันทั้งสองอย่าง ถ้ายังไม่ได้ตั้งค่า ปุ่ม Google และแผงโอนไฟล์จะซ่อนอยู่
+แอปขอสิทธิ์ Drive แค่ `drive.file` (เข้าถึงเฉพาะไฟล์และโฟลเดอร์ที่ Tohs Event สร้างเอง) ซึ่งไม่ต้องผ่าน security assessment
+
+1. เปิด Drive API: `gcloud services enable drive.googleapis.com --project tohs-event`
+2. Google Cloud Console → Google Auth Platform (OAuth consent screen) ของโปรเจกต์ `tohs-event`
+   - Audience: External · App name: Tohs Event · Support email
+   - Branding: App domain `https://tohsevent.com` · Privacy policy `https://tohsevent.com/privacy` ·
+     Terms `https://tohsevent.com/terms` · Authorized domain `tohsevent.com`
+   - Data access (scopes): `openid`, `email`, `profile`, `https://www.googleapis.com/auth/drive.file`
+   - ช่วงทดสอบ (Testing) ใช้ได้เฉพาะ Test users ที่เพิ่มไว้ (สูงสุด 100 คน) ก่อนเปิดจริงกด Publish app
+     และส่ง brand verification (ยืนยันโดเมนใน Search Console)
+3. Clients → Create client → Web application
+   - Authorized JavaScript origins: `https://tohsevent.com`, `https://tohsevent-997706797091.asia-southeast1.run.app`, `http://localhost:3000`
+   - Authorized redirect URIs: `https://tohsevent.com/api/auth/callback/google`,
+     `https://tohsevent-997706797091.asia-southeast1.run.app/api/auth/callback/google`,
+     `http://localhost:3000/api/auth/callback/google`
+4. เก็บ client secret เข้า Secret Manager (วางค่าแล้วกด Enter ตามด้วย Ctrl-D) แล้วผูกกับ Cloud Run:
+
+```bash
+gcloud secrets create google-client-secret --data-file=-
+gcloud secrets add-iam-policy-binding google-client-secret --member="serviceAccount:tohsevent-run@tohs-event.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud run services update tohsevent --region asia-southeast1 --update-env-vars GOOGLE_CLIENT_ID=<CLIENT_ID> --update-secrets GOOGLE_CLIENT_SECRET=google-client-secret:latest
+```
+
+หมายเหตุ: บัญชีที่สมัครด้วยอีเมล+รหัสผ่านไว้ก่อน จะเข้าสู่ระบบด้วย Google ที่อีเมลเดียวกันไม่ได้ทันที
+(กันการยึดบัญชี) ให้เข้าด้วยรหัสผ่านแล้วกด "เชื่อม Google Drive" ในหน้าจัดการรูปแทน
+token ของ Google เก็บแบบเข้ารหัสในฐานข้อมูล (`account.encryptOAuthTokens`)
+
 ### อีเมลแจ้งเตือน (Resend)
 
 ใช้แจ้งแขกที่สมัครไว้ว่ารูป Official พร้อมแล้ว และเตือนเจ้าภาพ 7 วันก่อนอัลบั้มหมดอายุ ถ้าไม่ได้ตั้ง key ฟีเจอร์เหล่านี้จะซ่อนอยู่

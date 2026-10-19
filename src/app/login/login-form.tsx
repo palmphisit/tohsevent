@@ -3,16 +3,13 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { safeNext } from "./safe-next";
 
 type Mode = "sign-in" | "sign-up";
 
 const inputClass =
   "w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/15";
 
-/** Only allow redirects back into the app (never to another origin). */
-function safeNext(next: string | null): string {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-}
 
 export function LoginForm() {
   const router = useRouter();
