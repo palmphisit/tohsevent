@@ -4,7 +4,7 @@ import { requireHost, type Host } from "../auth";
 import { collections } from "../db";
 import { env } from "../env";
 import { HttpError, parseObjectId } from "../http";
-import { planOf, type EventDoc, type EventStatus } from "../models";
+import { ALBUM_ONLY, planOf, type EventDoc, type EventStatus } from "../models";
 import { localePath, type Locale } from "../../lib/i18n";
 import { hashPassword } from "../password";
 import { publicUrl } from "../storage";
@@ -244,7 +244,7 @@ export async function eventPreviews(eventIds: ObjectId[], perEvent = 4): Promise
   const rows = await Promise.all(
     eventIds.map(async (eventId) => {
       const docs = await photos
-        .find({ eventId, status: "ready" }, { projection: { "keys.thumb": 1 } })
+        .find({ eventId, status: "ready", ...ALBUM_ONLY }, { projection: { "keys.thumb": 1 } })
         .sort({ _id: -1 })
         .limit(perEvent)
         .toArray();

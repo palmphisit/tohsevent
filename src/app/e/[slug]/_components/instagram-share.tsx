@@ -4,7 +4,7 @@ import { Camera, ImagePlus, Loader2, MonitorPlay, RefreshCw, X } from "lucide-re
 import { useEffect, useRef, useState } from "react";
 import { InstagramIcon } from "@/components/instagram-icon";
 import { uploadErrorMessage, uploadSinglePhoto, type UploadTarget } from "@/components/uploader";
-import { ApiError, sendInstagramShare, type PublicPhoto } from "@/lib/api-client";
+import { ApiError, reserveUpload, type PublicPhoto } from "@/lib/api-client";
 import { showError } from "@/lib/error-popup";
 import { useLocale } from "@/lib/use-locale";
 
@@ -18,10 +18,9 @@ const T = {
     take: "Take a photo",
     change: "Change photo",
     handle: "Your Instagram",
-    note: "The photo is added to the event album and pops up once on the venue screen with your @ for everyone to see.",
+    note: "The photo pops up once on the venue screen with your @ for everyone to see. It isn't added to the album; only the organizer keeps a copy.",
     send: "Share to the screen",
     uploading: (pct: number) => `Uploading ${pct}%`,
-    sending: "Sharing…",
     doneTitle: "Look at the screen!",
     doneText: (h: string) => `Your photo with @${h} pops up in a few seconds.`,
     doneReview: (h: string) => `Your photo with @${h} pops up once the organizer has checked it.`,
@@ -31,7 +30,7 @@ const T = {
       invalid_instagram: "Please enter a valid Instagram username",
       ig_share_cooldown: "You just shared. Please wait a moment and try again.",
       ig_share_off: "Sharing to the screen is closed right now",
-      photo_not_found: "This photo is no longer available",
+      ig_share_one_photo: "Please share one photo at a time",
     } as Record<string, string>,
     failed: "Couldn't share. Please try again.",
   },
@@ -44,10 +43,9 @@ const T = {
     take: "ถ่ายรูป",
     change: "เปลี่ยนรูป",
     handle: "Instagram ของคุณ",
-    note: "รูปนี้จะเข้าอัลบั้มของงานด้วย และเด้งขึ้นจอพร้อม @ ของคุณ 1 ครั้งให้ทุกคนในงานเห็น",
+    note: "รูปจะเด้งขึ้นจอพร้อม @ ของคุณ 1 ครั้งให้ทุกคนในงานเห็น ไม่เข้าอัลบั้มของงาน และมีเพียงผู้จัดงานที่เก็บประวัติไว้",
     send: "แชร์ขึ้นจอ",
     uploading: (pct: number) => `กำลังอัปโหลด ${pct}%`,
-    sending: "กำลังแชร์…",
     doneTitle: "ดูที่จอได้เลย!",
     doneText: (h: string) => `รูปของคุณพร้อม @${h} จะเด้งขึ้นจอในไม่กี่วินาที`,
     doneReview: (h: string) => `รูปของคุณพร้อม @${h} จะขึ้นจอหลังผู้จัดงานตรวจรูปแล้ว`,
@@ -57,7 +55,7 @@ const T = {
       invalid_instagram: "กรุณากรอกชื่อผู้ใช้ Instagram ให้ถูกต้อง",
       ig_share_cooldown: "เพิ่งแชร์ไป รอสักครู่แล้วลองอีกครั้ง",
       ig_share_off: "ตอนนี้ปิดการแชร์ขึ้นจอแล้ว",
-      photo_not_found: "รูปนี้ไม่มีแล้ว",
+      ig_share_one_photo: "แชร์ได้ทีละ 1 รูป",
     } as Record<string, string>,
     failed: "แชร์ไม่สำเร็จ ลองอีกครั้ง",
   },
@@ -83,18 +81,16 @@ function savedHandle(): string {
 }
 
 /**
- * Guest side of "Instagram share": take or choose a photo right now, enter @, and it is
- * uploaded to the album like any other photo and popped up once on the slideshow.
+ * Guest side of "Instagram share": take or choose a photo right now and enter @. The photo is
+ * uploaded for the venue screen only (popped up once, kept out of the album; the host has a copy).
  */
 export function InstagramShare({
   slug,
   target,
-  onUploaded,
 }: {
   slug: string;
   /** The guest page's upload target (joins the event, asks for consent first). */
   target: UploadTarget;
-  onUploaded: (photo: PublicPhoto) => void;
 }) {
   const t = T[useLocale()];
   const [open, setOpen] = useState(false);
@@ -119,24 +115,14 @@ export function InstagramShare({
           <MonitorPlay className="h-4 w-4" /> {t.open}
         </button>
       </section>
-      {open && <ShareSheet slug={slug} target={target} onUploaded={onUploaded} onClose={() => setOpen(false)} />}
+      {open && <ShareSheet slug={slug} target={target} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-type Step = { kind: "form" } | { kind: "uploading"; progress: number } | { kind: "sending" } | { kind: "done"; handle: string; review: boolean };
+type Step = { kind: "form" } | { kind: "uploading"; progress: number } | { kind: "done"; handle: string; review: boolean };
 
-function ShareSheet({
-  slug,
-  target,
-  onUploaded,
-  onClose,
-}: {
-  slug: string;
-  target: UploadTarget;
-  onUploaded: (photo: PublicPhoto) => void;
-  onClose: () => void;
-}) {
+function ShareSheet({ slug, target, onClose }: { slug: string; target: UploadTarget; onClose: () => void }) {
   const locale = useLocale();
   const t = T[locale];
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -145,8 +131,6 @@ function ShareSheet({
   const [preview, setPreview] = useState<string | null>(null);
   const [handle, setHandle] = useState(savedHandle);
   const [step, setStep] = useState<Step>({ kind: "form" });
-  // Set once the photo is in the album: a failed share is retried without uploading again.
-  const [uploaded, setUploaded] = useState<PublicPhoto | null>(null);
 
   useEffect(() => {
     if (!preview) return;
@@ -159,49 +143,38 @@ function ShareSheet({
     if (!next) return;
     setFile(next);
     setPreview(URL.createObjectURL(next));
-    setUploaded(null);
   }
 
   function reset() {
     setFile(null);
     setPreview(null);
-    setUploaded(null);
     setStep({ kind: "form" });
   }
 
   const clean = cleanHandle(handle);
   const valid = HANDLE.test(clean);
-  const busy = step.kind === "uploading" || step.kind === "sending";
+  const busy = step.kind === "uploading";
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
     if (!file || !valid || busy) return;
-    let photo = uploaded;
+    // Same pipeline as any upload, but reserved as an Instagram share (the server pops it up once).
+    const shareTarget: UploadTarget = { ...target, reserve: (image) => reserveUpload(slug, image, clean) };
+    let photo: PublicPhoto;
     try {
-      if (!photo) {
-        setStep({ kind: "uploading", progress: 0 });
-        photo = await uploadSinglePhoto(target, file, (progress) => setStep({ kind: "uploading", progress }));
-        setUploaded(photo);
-        onUploaded(photo);
-      }
+      setStep({ kind: "uploading", progress: 0 });
+      photo = await uploadSinglePhoto(shareTarget, file, (progress) => setStep({ kind: "uploading", progress }));
     } catch (err) {
       setStep({ kind: "form" });
-      showError(uploadErrorMessage(err, locale));
+      showError((err instanceof ApiError && t.errors[err.code]) || uploadErrorMessage(err, locale) || t.failed);
       return;
     }
     try {
-      setStep({ kind: "sending" });
-      const { instagram } = await sendInstagramShare(slug, { photoId: photo.id, instagram: clean });
-      try {
-        localStorage.setItem(HANDLE_KEY, instagram);
-      } catch {
-        // Private mode: the guest types it again next time.
-      }
-      setStep({ kind: "done", handle: instagram, review: !!photo.pendingReview });
-    } catch (err) {
-      setStep({ kind: "form" });
-      showError((err instanceof ApiError && t.errors[err.code]) || t.failed);
+      localStorage.setItem(HANDLE_KEY, clean);
+    } catch {
+      // Private mode: the guest types it again next time.
     }
+    setStep({ kind: "done", handle: clean, review: !!photo.pendingReview });
   }
 
   return (
@@ -302,7 +275,7 @@ function ShareSheet({
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-tr from-amber-400 via-pink-500 to-violet-600 px-4 py-3.5 font-semibold text-white shadow-lg transition active:scale-[0.99] disabled:opacity-40"
             >
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <MonitorPlay className="h-5 w-5" />}
-              {step.kind === "uploading" ? t.uploading(Math.round(step.progress * 100)) : step.kind === "sending" ? t.sending : t.send}
+              {step.kind === "uploading" ? t.uploading(Math.round(step.progress * 100)) : t.send}
             </button>
           </form>
         )}

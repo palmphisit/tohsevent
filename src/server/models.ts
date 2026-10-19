@@ -275,6 +275,9 @@ export interface GuestSessionDoc {
 
 export type PhotoSource = "guest" | "official";
 export type PhotoStatus = "pending" | "ready" | "hidden" | "deleted";
+
+/** Filter part that keeps Instagram-share uploads out of album queries. */
+export const ALBUM_ONLY = { purpose: { $ne: "instagram" as const } };
 export type RequiredVariant = "display" | "thumb";
 export type PhotoVariant = RequiredVariant | "watermarked" | "video";
 
@@ -316,7 +319,12 @@ export interface PhotoDoc {
     at: Date;
     reviewedAt?: Date;
   };
-  /** The uploader sent this photo to the venue screen with their Instagram handle (latest send). */
+  /**
+   * "instagram": uploaded through Instagram share. It pops up once on the venue screen and is
+   * kept out of the album (gallery, slideshow, downloads); only the host sees it, in the share history.
+   */
+  purpose?: "instagram";
+  /** Instagram share: the guest's handle; `at` is when it was sent (set on upload completion). */
   shoutout?: { instagram: string; at: Date };
   createdAt: Date;
   completedAt: Date | null;

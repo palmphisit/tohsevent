@@ -4,6 +4,7 @@ import { toPublicEvent } from "@/server/services/events";
 import { guestEventUrl } from "@/server/services/host-events";
 import { slideshowKey, slideshowSettings, slideshowUrl } from "@/server/services/slideshow";
 import { loadHostEventPage } from "../load-event";
+import { InstagramHistory } from "./instagram-history";
 import { SlideshowEditor } from "./slideshow-editor";
 
 export default function EventSlideshowPage({ params }: PageProps<"/dashboard/events/[id]/slideshow">) {
@@ -37,6 +38,9 @@ async function SlideshowLoader({ params }: Pick<PageProps<"/dashboard/events/[id
         qrSvg={await qrSvg(guestUrl, 1)}
         guestUrl={guestUrl}
       />
+      <div className="mt-6">
+        <InstagramHistory eventId={id} />
+      </div>
     </>
   );
 }

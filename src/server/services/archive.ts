@@ -1,7 +1,7 @@
 import { downloadZip, predictLength } from "client-zip";
 import { collections } from "../db";
 import { HttpError } from "../http";
-import type { EventDoc, PhotoDoc, PhotoSource } from "../models";
+import { ALBUM_ONLY, type EventDoc, type PhotoDoc, type PhotoSource } from "../models";
 import { getObjectStream } from "../storage";
 
 // Album download for hosts: the visible photos (clean display files, never watermarked; videos as the clip)
@@ -10,7 +10,7 @@ import { getObjectStream } from "../storage";
 
 export const ZIP_PART_SIZE = 300;
 
-const visible = (event: EventDoc, source: PhotoSource) => ({ eventId: event._id, source, status: "ready" as const });
+const visible = (event: EventDoc, source: PhotoSource) => ({ eventId: event._id, source, status: "ready" as const, ...ALBUM_ONLY });
 
 export async function downloadableCounts(event: EventDoc): Promise<Record<PhotoSource, number>> {
   const { photos } = await collections();

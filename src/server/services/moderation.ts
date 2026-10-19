@@ -1,7 +1,7 @@
 import { MongoServerError, ObjectId, type Filter } from "mongodb";
 import { collections } from "../db";
 import { HttpError } from "../http";
-import type { EventDoc, PhotoDoc, ReportDoc, ReportReason } from "../models";
+import { ALBUM_ONLY, type EventDoc, type PhotoDoc, type ReportDoc, type ReportReason } from "../models";
 import { deleteObjects } from "../storage";
 import { incrementEventCounter } from "./events";
 import { removeOriginal } from "./originals";
@@ -69,7 +69,7 @@ export async function listHostPhotos(
   const filter: Filter<PhotoDoc> =
     options.view === "reported"
       ? needsReview(event._id)
-      : { eventId: event._id, source: options.view, status: { $in: ["ready", "hidden"] } };
+      : { eventId: event._id, source: options.view, status: { $in: ["ready", "hidden"] }, ...ALBUM_ONLY };
   if (options.cursor) filter._id = { $lt: options.cursor };
 
   const docs = await photos

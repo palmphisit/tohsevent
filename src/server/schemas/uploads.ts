@@ -27,4 +27,6 @@ const fileSchema = z.object({
 /** Body of POST .../uploads (guest and host). */
 export const uploadRequestSchema = z.object({
   files: z.array(fileSchema).min(1).max(UPLOAD_LIMITS.maxFilesPerRequest),
+  /** Guest Instagram share: one photo for the venue screen, kept out of the album. */
+  instagram: z.string().max(80).optional(),
 });

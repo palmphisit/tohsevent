@@ -7,7 +7,7 @@ import type { BrandingAsset, BrandingAssetKind, BrandingEditorState, SaveBrandin
 import type { InviteView, MemberView } from "@/server/services/members";
 import type { HostPhoto, HostPhotoView } from "@/server/services/moderation";
 import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
-import type { Shoutout, SlideshowSettings } from "@/server/services/slideshow";
+import type { InstagramShareItem, Shoutout, SlideshowSettings } from "@/server/services/slideshow";
 import type { Appearance } from "@/server/services/appearance";
 import type { DriveExportView } from "@/server/services/drive-export";
 import type { EventInfo } from "@/server/services/event-info";
@@ -16,7 +16,7 @@ import type { CustomPlanConfig } from "./custom-plan";
 import type { Locale } from "./i18n";
 import type { PreparedImage } from "./image";
 
-export type { Shoutout, CheckInResult, EventInfo, HostRegistration, RegistrationSettings, RegistrationStats, Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
+export type { InstagramShareItem, Shoutout, CheckInResult, EventInfo, HostRegistration, RegistrationSettings, RegistrationStats, Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -87,10 +87,12 @@ function uploadBody(image: PreparedImage): string {
   });
 }
 
-export async function reserveUpload(slug: string, image: PreparedImage): Promise<PresignedUpload> {
+/** `instagram`: an Instagram-share upload (venue screen popup, kept out of the album). */
+export async function reserveUpload(slug: string, image: PreparedImage, instagram?: string): Promise<PresignedUpload> {
+  const body = uploadBody(image);
   const { uploads } = await request<{ uploads: PresignedUpload[] }>(`${base(slug)}/uploads`, {
     method: "POST",
-    body: uploadBody(image),
+    body: instagram ? JSON.stringify({ ...JSON.parse(body), instagram }) : body,
   });
   return uploads[0];
 }
@@ -271,8 +273,12 @@ export function listSlideshowPhotos(
   });
 }
 
-export function sendInstagramShare(slug: string, input: { photoId: string; instagram: string }) {
-  return request<{ instagram: string }>(`${base(slug)}/instagram`, { method: "POST", body: JSON.stringify(input) });
+export function listInstagramShares(eventId: string, cursor?: string | null) {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return request<{ items: InstagramShareItem[]; nextCursor: string | null; total: number }>(
+    `${hostBase(eventId)}/instagram-shares${query}`,
+    { cache: "no-store" },
+  );
 }
 
 export function saveSlideshow(eventId: string, input: SlideshowSettings) {

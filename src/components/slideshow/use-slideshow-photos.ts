@@ -71,8 +71,8 @@ export function useSlideshowPhotos(
       if (added.length || kept.length !== photosRef.current.length) apply([...added, ...kept]);
     }
 
-    // Each send pops up once: sends that already existed when the screen opened are not replayed,
-    // and the photo does not show again as a "new upload" slide right after its popup.
+    // Each send pops up once: sends that already existed when the screen opened are not replayed.
+    // (Shared photos are never in the album list; the fresh-queue filter is just a safeguard.)
     function queueShoutouts(list: Shoutout[]) {
       for (const item of list) {
         if (shoutoutPhotos.has(item.photo.id)) continue;

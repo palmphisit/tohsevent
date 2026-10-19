@@ -273,8 +273,8 @@ export function SlideshowEditor({
             <div className="min-w-0">
               <h2 className="text-sm font-medium">แชร์ Instagram ขึ้นจอ</h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                แขกเลือกรูปที่ตัวเองอัปโหลด กรอก Instagram @ แล้วกดแชร์ จอจะเด้ง Popup รูปพร้อม @ ขึ้นกลางจอ
-                (แขกแชร์ได้คนละครั้งต่อ 30 วินาที)
+                แขกถ่ายหรือเลือกรูป กรอก Instagram @ แล้วกดแชร์ จอจะเด้ง Popup รูปพร้อม @ ขึ้นกลางจอ 1 ครั้ง
+                รูปกลุ่มนี้แยกจากอัลบั้มและ Slideshow ดูย้อนหลังได้ที่ประวัติด้านล่าง (แขกแชร์ได้คนละครั้งต่อ 30 วินาที)
               </p>
             </div>
           </div>

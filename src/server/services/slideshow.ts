@@ -2,8 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Filter, ObjectId } from "mongodb";
 import { collections } from "../db";
 import { env } from "../env";
-import { HttpError } from "../http";
-import type { EventDoc, PhotoDoc, SlideshowDoc } from "../models";
+import { ALBUM_ONLY, type EventDoc, type PhotoDoc, type SlideshowDoc } from "../models";
 import { guestEventUrl } from "./host-events";
 import { toPublicPhoto, type PublicPhoto } from "./photos";
 import { repairListedPosters } from "./video-posters";
@@ -85,7 +84,7 @@ export async function listSlideshowPhotos(
   options: { sources: SlideshowSettings["sources"]; limit: number },
 ): Promise<{ items: PublicPhoto[]; total: number }> {
   const { photos } = await collections();
-  const filter: Filter<PhotoDoc> = { eventId: event._id, status: "ready" };
+  const filter: Filter<PhotoDoc> = { eventId: event._id, status: "ready", ...ALBUM_ONLY };
   if (options.sources !== "all") filter.source = options.sources;
   const [docs, total] = await Promise.all([
     photos.find(filter).sort({ _id: -1 }).limit(options.limit).toArray(),
@@ -95,13 +94,8 @@ export async function listSlideshowPhotos(
 }
 
 // ---------------------------------------------------------------------------
-// Instagram share: a guest uploads a photo at the moment they share it (it joins the album like
-// any upload) with their @handle, and the venue screen pops it up once in the middle.
+// Instagram share (see instagram-share.ts): the venue screen pops each send up once in the middle.
 
-/** Instagram usernames: letters, digits, "." and "_", up to 30 characters. */
-export const INSTAGRAM_HANDLE = /^(?!.*\.\.)(?!\.)[A-Za-z0-9._]{1,30}(?<!\.)$/;
-/** One send per guest per this many seconds, so a queue of popups stays fair. */
-export const SHOUTOUT_COOLDOWN_SEC = 30;
 /** How far back a screen looks for sends (covers a queue of popups and photos approved a bit later). */
 const SHOUTOUT_WINDOW_MS = 10 * 60 * 1000;
 
@@ -111,16 +105,12 @@ export interface Shoutout {
   at: string;
 }
 
-export function normalizeHandle(input: string): string {
-  return input.trim().replace(/^@+/, "").replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\//i, "").replace(/\/.*$/, "");
-}
-
 /** Recent sends, oldest first (the screen shows them in this order). Off = none. */
 export async function listShoutouts(event: EventDoc, now = new Date()): Promise<Shoutout[]> {
   if (!slideshowSettings(event).igShare) return [];
   const { photos } = await collections();
   const docs = await photos
-    .find({ eventId: event._id, status: "ready", "shoutout.at": { $gt: new Date(now.getTime() - SHOUTOUT_WINDOW_MS) } })
+    .find({ eventId: event._id, purpose: "instagram", status: "ready", "shoutout.at": { $gt: new Date(now.getTime() - SHOUTOUT_WINDOW_MS) } })
     .sort({ "shoutout.at": 1 })
     .limit(30)
     .toArray();
@@ -131,34 +121,42 @@ export async function listShoutouts(event: EventDoc, now = new Date()): Promise<
   }));
 }
 
-export async function sendShoutout(
+export interface InstagramShareItem {
+  id: string;
+  instagram: string;
+  /** When it was sent to the screen (upload completed). */
+  at: string;
+  /** "hidden": held by moderation (or hidden by the host), so it did not pop up. */
+  status: "ready" | "hidden";
+  photo: PublicPhoto;
+}
+
+/** Host-only history of Instagram shares, newest first. */
+export async function listInstagramShares(
   event: EventDoc,
-  guestId: ObjectId,
-  photoId: ObjectId,
-  handle: string,
-  now = new Date(),
-): Promise<{ instagram: string }> {
-  if (!slideshowSettings(event).igShare) throw new HttpError(403, "ig_share_off", "Instagram share is not open for this event");
-  const instagram = normalizeHandle(handle);
-  if (!INSTAGRAM_HANDLE.test(instagram)) throw new HttpError(400, "invalid_instagram", "Enter a valid Instagram username");
+  options: { cursor?: ObjectId; limit: number },
+): Promise<{ items: InstagramShareItem[]; nextCursor: string | null; total: number }> {
   const { photos } = await collections();
-  const recent = await photos.findOne({
-    eventId: event._id,
-    "uploader.id": guestId,
-    "shoutout.at": { $gt: new Date(now.getTime() - SHOUTOUT_COOLDOWN_SEC * 1000) },
-  });
-  if (recent) throw new HttpError(429, "ig_share_cooldown", "Please wait a moment before sharing again");
-  // One popup per photo. "hidden" covers photos held for review: they pop up once approved.
-  const result = await photos.updateOne(
-    {
-      _id: photoId,
-      eventId: event._id,
-      "uploader.id": guestId,
-      status: { $in: ["ready", "hidden"] },
-      shoutout: { $exists: false },
-    },
-    { $set: { shoutout: { instagram, at: now } } },
-  );
-  if (result.matchedCount === 0) throw new HttpError(404, "photo_not_found", "Photo not found");
-  return { instagram };
+  const base: Filter<PhotoDoc> = { eventId: event._id, purpose: "instagram", status: { $in: ["ready", "hidden"] } };
+  const [docs, total] = await Promise.all([
+    photos
+      .find(options.cursor ? { ...base, _id: { $lt: options.cursor } } : base)
+      .sort({ _id: -1 })
+      .limit(options.limit + 1)
+      .toArray(),
+    photos.countDocuments(base),
+  ]);
+  const hasMore = docs.length > options.limit;
+  const page = hasMore ? docs.slice(0, options.limit) : docs;
+  return {
+    items: page.map((doc) => ({
+      id: doc._id.toHexString(),
+      instagram: doc.shoutout?.instagram ?? "",
+      at: (doc.shoutout?.at ?? doc.createdAt).toISOString(),
+      status: doc.status === "hidden" ? "hidden" : "ready",
+      photo: toPublicPhoto(doc, event, { clean: true }),
+    })),
+    nextCursor: hasMore ? page[page.length - 1]._id.toHexString() : null,
+    total,
+  };
 }

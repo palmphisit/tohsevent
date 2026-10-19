@@ -13,8 +13,8 @@ export const POST = route(async (req: NextRequest, ctx: RouteContext<"/api/v1/ev
   const { slug } = await ctx.params;
   const event = await requireOpenEventBySlug(slug);
   const session = await requireGuestSession(req, event);
-  const { files } = await parseJson(req, uploadRequestSchema);
+  const { files, instagram } = await parseJson(req, uploadRequestSchema);
 
-  const uploads = await createGuestUploads(event, session._id, files);
+  const uploads = await createGuestUploads(event, session._id, files, { instagram });
   return Response.json({ uploads }, { status: 201 });
 });

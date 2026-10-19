@@ -3,7 +3,7 @@ import { collections } from "../db";
 import { createFolder, DriveAuthError, DriveSessionLost, startUpload, uploadChunk } from "../drive";
 import { driveAccessToken } from "../google";
 import { HttpError } from "../http";
-import type { DriveExportDoc, EventDoc, PhotoDoc, PhotoSource } from "../models";
+import { ALBUM_ONLY, type DriveExportDoc, type EventDoc, type PhotoDoc, type PhotoSource } from "../models";
 import { originalsBucket } from "../originals-storage";
 import { readRange } from "../storage";
 
@@ -53,6 +53,7 @@ function remainingFilter(job: Pick<DriveExportDoc, "eventId" | "sources" | "curs
     eventId: job.eventId,
     status: "ready",
     source: { $in: job.sources },
+    ...ALBUM_ONLY,
     ...(job.cursor ? { _id: { $gt: job.cursor } } : {}),
   };
 }

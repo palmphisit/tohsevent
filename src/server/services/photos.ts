@@ -3,6 +3,7 @@ import { ObjectId, type Filter } from "mongodb";
 import { collections } from "../db";
 import { HttpError } from "../http";
 import {
+  ALBUM_ONLY,
   planOf,
   type EventDoc,
   type PhotoDoc,
@@ -11,6 +12,7 @@ import {
   type UploadContentType,
   type VideoContentType,
 } from "../models";
+import { checkShoutout } from "./instagram-share";
 import { checkImage } from "../safe-search";
 import { deleteObjects, headObject, presignPut, publicUrl } from "../storage";
 import { probeDuration } from "../video-poster";
@@ -153,6 +155,7 @@ async function createPendingPhotos(
   source: PhotoSource,
   uploader: Uploader,
   files: UploadRequestFile[],
+  instagram?: string,
 ): Promise<PresignedUpload[]> {
   const watermark = planOf(event).watermark;
   const { photos } = await collections();
@@ -178,6 +181,7 @@ async function createPendingPhotos(
       width: file.width,
       height: file.height,
       takenAt: file.takenAt ? new Date(file.takenAt) : null,
+      ...(instagram ? { purpose: "instagram" as const, shoutout: { instagram, at: now } } : {}),
       status: "pending",
       openReports: 0,
       createdAt: now,
@@ -227,9 +231,11 @@ export async function createGuestUploads(
   event: EventDoc,
   guestSessionId: ObjectId,
   files: UploadRequestFile[],
+  options: { instagram?: string } = {},
 ): Promise<PresignedUpload[]> {
   if (!event.settings.guestUpload) throw new HttpError(403, "uploads_disabled", "Uploads are closed for this event");
   assertFilesAllowed(event, files);
+  const instagram = options.instagram === undefined ? undefined : await checkShoutout(event, guestSessionId, files, options.instagram);
 
   const { guestSessions } = await collections();
   const bytes = requestedBytes(files);
@@ -250,7 +256,13 @@ export async function createGuestUploads(
     throw new HttpError(429, "quota_exceeded", `Each guest can upload up to ${event.settings.maxPhotosPerGuest} photos`);
   }
 
-  return createPendingPhotos(event, "guest", { type: "guest", id: session._id, displayName: session.displayName }, files);
+  return createPendingPhotos(
+    event,
+    "guest",
+    { type: "guest", id: session._id, displayName: session.displayName },
+    files,
+    instagram,
+  );
 }
 
 /** Official photos uploaded by the host (no per-guest quota; works even when guest uploads are closed). */
@@ -330,12 +342,15 @@ export async function completeUpload(event: EventDoc, uploaderId: ObjectId, phot
 
   // AI pre-moderation (when enabled): flagged photos start hidden for the host to review.
   const verdict = await checkImage(publicUrl(posterKeys.thumb));
+  const now = new Date();
   const updated = await photos.findOneAndUpdate(
     { _id: photo._id, status: "pending" },
     {
       $set: {
         status: verdict?.flagged ? "hidden" : "ready",
-        completedAt: new Date(),
+        completedAt: now,
+        // Instagram share: the screen pops it up from now on.
+        ...(photo.shoutout ? { "shoutout.at": now } : {}),
         ...(verdict ? { autoModeration: { ...verdict, at: new Date() } } : {}),
       },
     },
@@ -404,7 +419,7 @@ export async function listEventPhotos(
   options: { source: PhotoSource; cursor?: ObjectId; limit: number; viewerId?: ObjectId },
 ): Promise<{ items: PublicPhoto[]; nextCursor: string | null }> {
   const { photos } = await collections();
-  const filter: Filter<PhotoDoc> = { eventId: event._id, source: options.source, status: "ready" };
+  const filter: Filter<PhotoDoc> = { eventId: event._id, source: options.source, status: "ready", ...ALBUM_ONLY };
   if (options.cursor) filter._id = { $lt: options.cursor };
 
   const docs = await photos
