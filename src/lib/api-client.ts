@@ -10,10 +10,12 @@ import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
 import type { SlideshowSettings } from "@/server/services/slideshow";
 import type { Appearance } from "@/server/services/appearance";
 import type { DriveExportView } from "@/server/services/drive-export";
+import type { EventInfo } from "@/server/services/event-info";
+import type { CheckInResult, HostRegistration, RegistrationSettings, RegistrationStats } from "@/server/services/registration";
 import type { CustomPlanConfig } from "./custom-plan";
 import type { PreparedImage } from "./image";
 
-export type { Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
+export type { CheckInResult, EventInfo, HostRegistration, RegistrationSettings, RegistrationStats, Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -302,5 +304,71 @@ export function saveAppearance(eventId: string, input: Appearance) {
   return request<{ appearance: Appearance }>(`${hostBase(eventId)}/appearance`, {
     method: "PUT",
     body: JSON.stringify(input),
+  });
+}
+
+// ---- Event details, registration and check-in ----
+
+export function saveEventInfo(eventId: string, info: EventInfo) {
+  return request<{ info: EventInfo }>(`${hostBase(eventId)}/info`, { method: "PUT", body: JSON.stringify(info) });
+}
+
+export function saveRegistrationSettings(eventId: string, settings: RegistrationSettings) {
+  return request<{ settings: RegistrationSettings }>(`${hostBase(eventId)}/registration`, {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+export function listHostRegistrations(eventId: string, params: { q?: string; filter?: string }) {
+  const query = new URLSearchParams({ filter: params.filter ?? "all" });
+  if (params.q) query.set("q", params.q);
+  return request<{ items: HostRegistration[]; stats: RegistrationStats }>(`${hostBase(eventId)}/registrations?${query}`);
+}
+
+export function updateRegistration(eventId: string, regId: string, action: "checkin" | "undo" | "cancel") {
+  return request<{ registration: HostRegistration }>(`${hostBase(eventId)}/registrations/${regId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action }),
+  });
+}
+
+export interface RegisterInput {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  organization?: string | null;
+  partySize?: number;
+  answer?: string | null;
+  consent: true;
+}
+
+export function registerForEvent(slug: string, input: RegisterInput, onsiteKey?: string | null) {
+  const query = onsiteKey ? `?onsite=${encodeURIComponent(onsiteKey)}` : "";
+  return request<{ code: string; ticketUrl: string; checkedInAt: string | null }>(`${base(slug)}/register${query}`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function listCheckins(slug: string, params: { key?: string | null; q?: string; filter?: string }) {
+  const query = new URLSearchParams({ filter: params.filter ?? "all" });
+  if (params.key) query.set("key", params.key);
+  if (params.q) query.set("q", params.q);
+  return request<{ items: HostRegistration[]; stats: RegistrationStats }>(`${base(slug)}/checkin?${query}`, { cache: "no-store" });
+}
+
+export function checkInGuest(slug: string, body: { key?: string | null; scan?: string; id?: string }) {
+  return request<CheckInResult>(`${base(slug)}/checkin`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function undoGuestCheckIn(slug: string, body: { key?: string | null; id: string }) {
+  return request<{ registration: HostRegistration }>(`${base(slug)}/checkin/undo`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function registerWalkIn(slug: string, input: RegisterInput, key?: string | null) {
+  return request<{ registration: HostRegistration }>(`${base(slug)}/checkin/walk-in`, {
+    method: "POST",
+    body: JSON.stringify({ ...input, key }),
   });
 }

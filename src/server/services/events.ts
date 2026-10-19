@@ -4,6 +4,7 @@ import { HttpError } from "../http";
 import { planOf, type EventDoc } from "../models";
 import { emailEnabled } from "../email";
 import { appearanceOf, type Appearance } from "./appearance";
+import { eventInfoOf, hasEventInfo } from "./event-info";
 import { toPublicBranding, type PublicBranding } from "./branding";
 
 /** Shape of an event that is safe to send to guests. */
@@ -20,6 +21,8 @@ export interface PublicEvent {
   branding: PublicBranding | null;
   /** Guests can ask for an email when official photos are ready. */
   notifyAvailable: boolean;
+  /** The event has details (schedule, venue, map) or open registration: link to /e/<slug>/info. */
+  hasInfo: boolean;
   /** Theme, header and gallery style chosen by the host (every plan). */
   appearance: Appearance;
   /** Video clip limits on this plan; null when only photos are allowed. */
@@ -39,6 +42,7 @@ export function toPublicEvent(event: EventDoc): PublicEvent {
     notifyAvailable: emailEnabled(),
     video: planOf(event).video,
     appearance: appearanceOf(event),
+    hasInfo: hasEventInfo(eventInfoOf(event)) || !!event.registration?.enabled,
   };
 }
 

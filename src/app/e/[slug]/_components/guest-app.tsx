@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { BRAND_FONT_CLASS } from "@/app/brand-fonts";
@@ -127,6 +128,19 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
       {appearance.header === "hero" && <HeroHeader event={event} date={date} appearance={appearance} />}
       <main className={`mx-auto w-full max-w-3xl px-4 pb-16 ${appearance.header === "hero" ? "relative -mt-8" : "pt-6 sm:pt-8"}`}>
       {appearance.header !== "hero" && <EventHeader event={event} date={date} appearance={appearance} />}
+      {event.hasInfo && (
+        <Link
+          href={`/e/${event.slug}/info`}
+          className={`flex items-center justify-between gap-3 rounded-2xl bg-card px-4 py-3 text-sm shadow-sm ring-1 ring-line ${
+            appearance.header === "hero" ? "mb-3" : "mt-4"
+          }`}
+        >
+          <span className="flex items-center gap-2 font-medium">
+            <MapPin className="h-4 w-4 text-brand" /> รายละเอียดงาน กำหนดการ และแผนที่
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted" />
+        </Link>
+      )}
 
       {event.guestUpload ? (
         <section

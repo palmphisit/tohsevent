@@ -71,7 +71,7 @@ export async function runDailyCleanup(now = new Date()): Promise<CleanupResult> 
 }
 
 async function purgeExpiredAlbums(now: Date): Promise<{ photosPurged: number; albumsPurged: number }> {
-  const { events, photos, guestSessions } = await collections();
+  const { events, photos, guestSessions, registrations } = await collections();
   const cutoff = new Date(now.getTime() - PURGE_GRACE_DAYS * DAY_MS);
   const due = await events
     .find({ status: "expired", expiresAt: { $lt: cutoff }, purgedAt: null })
@@ -108,6 +108,8 @@ async function purgeExpiredAlbums(now: Date): Promise<{ photosPurged: number; al
       await deleteObjects(brandingKeys(event.branding));
       // Data minimisation: notification emails are not needed once the album is gone.
       await guestSessions.updateMany({ eventId: event._id }, { $unset: { notify: "" } });
+      // Registrations hold names, emails and phone numbers: delete them with the album.
+      await registrations.deleteMany({ eventId: event._id });
       await audit({ eventId: event._id, actor: { type: "system", id: "daily-cleanup" }, action: "album.purge" });
       await events.updateOne(
         { _id: event._id },

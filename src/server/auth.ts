@@ -76,6 +76,11 @@ async function hostFromHeaders(requestHeaders: Headers): Promise<Host | null> {
   return { id: new ObjectId(session.user.id), name: session.user.name, email: session.user.email };
 }
 
+/** For route handlers that also accept other credentials: the signed-in host, if any. */
+export function optionalHost(req: Request): Promise<Host | null> {
+  return hostFromHeaders(req.headers);
+}
+
 /** For route handlers: the signed-in host, or a 401 error. */
 export async function requireHost(req: Request): Promise<Host> {
   const host = await hostFromHeaders(req.headers);

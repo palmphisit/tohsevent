@@ -1,6 +1,6 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
 import { env } from "./env";
-import type { DriveExportDoc, EventDoc, GuestSessionDoc, InviteDoc, PaymentDoc, PhotoDoc, ReportDoc } from "./models";
+import type { DriveExportDoc, EventDoc, GuestSessionDoc, InviteDoc, PaymentDoc, PhotoDoc, RegistrationDoc, ReportDoc } from "./models";
 
 // Cloud Run instances are long-lived containers, so one pooled client per instance
 // is reused across requests. Stored on globalThis to survive dev hot reloads.
@@ -33,6 +33,7 @@ export async function collections(): Promise<{
   payments: Collection<PaymentDoc>;
   invites: Collection<InviteDoc>;
   driveExports: Collection<DriveExportDoc>;
+  registrations: Collection<RegistrationDoc>;
 }> {
   const db = await getDb();
   return {
@@ -43,12 +44,13 @@ export async function collections(): Promise<{
     payments: db.collection<PaymentDoc>("payments"),
     invites: db.collection<InviteDoc>("invites"),
     driveExports: db.collection<DriveExportDoc>("driveExports"),
+    registrations: db.collection<RegistrationDoc>("registrations"),
   };
 }
 
 export async function ensureIndexes(): Promise<void> {
   const db = database();
-  const { events, guestSessions, photos, reports, payments, invites, driveExports } = await collections();
+  const { events, guestSessions, photos, reports, payments, invites, driveExports, registrations } = await collections();
   await Promise.all([
     events.createIndex({ slug: 1 }, { unique: true }),
     events.createIndex({ ownerId: 1, createdAt: -1 }),
@@ -56,6 +58,13 @@ export async function ensureIndexes(): Promise<void> {
     invites.createIndex({ tokenHash: 1 }, { unique: true }),
     invites.createIndex({ eventId: 1, createdAt: -1 }),
     driveExports.createIndex({ eventId: 1, userId: 1, createdAt: -1 }),
+    registrations.createIndex({ eventId: 1, code: 1 }, { unique: true }),
+    registrations.createIndex(
+      { eventId: 1, email: 1 },
+      { unique: true, partialFilterExpression: { status: "registered", email: { $type: "string" } } },
+    ),
+    registrations.createIndex({ eventId: 1, createdAt: -1 }),
+    registrations.createIndex({ eventId: 1, checkedInAt: -1 }),
     // Daily job: expire and purge albums.
     events.createIndex({ status: 1, expiresAt: 1 }),
     payments.createIndex({ stripeSessionId: 1 }, { unique: true, partialFilterExpression: { stripeSessionId: { $type: "string" } } }),

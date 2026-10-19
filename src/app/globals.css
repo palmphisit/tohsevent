@@ -60,3 +60,22 @@ body {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* Map pin for OpenStreetMap maps (components/osm-map.tsx), in the event's color. */
+.osm-pin {
+  position: relative;
+  display: block;
+  width: 34px;
+  height: 34px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--color-brand);
+  transform: rotate(-45deg);
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.3);
+  border: 3px solid #fff;
+}
+.osm-pin span {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: #fff;
+}

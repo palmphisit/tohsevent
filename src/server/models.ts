@@ -37,6 +37,10 @@ export interface EventDoc {
   expiryReminderSentAt?: Date | null;
   /** People invited to work on the event besides the owner (photographers). */
   members?: EventMember[];
+  /** Details shown on the event page: description, times, venue, map location, schedule. */
+  info?: EventInfoDoc;
+  /** Sign-up before the event and check-in at the door; missing = registration off. */
+  registration?: RegistrationSettingsDoc;
   /** Guest page look (every plan); missing = defaults (see services/appearance.ts). */
   appearance?: AppearanceDoc;
   /** Big-screen slideshow look; missing = defaults (see services/slideshow.ts). */
@@ -97,6 +101,60 @@ export interface SponsorDoc {
   name: string;
   imageKey: string;
   linkUrl: string | null;
+}
+
+export interface ScheduleItem {
+  id: string;
+  /** "HH:mm", local time of the event (Asia/Bangkok). */
+  time: string;
+  title: string;
+  detail: string | null;
+}
+
+export interface EventInfoDoc {
+  description: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  venueName: string | null;
+  address: string | null;
+  location: { lat: number; lng: number } | null;
+  schedule: ScheduleItem[];
+  updatedAt: Date;
+}
+
+export interface RegistrationSettingsDoc {
+  enabled: boolean;
+  /** Most sign-ups accepted (never above the plan's guest limit); null = the plan's limit. */
+  capacity: number | null;
+  /** Online sign-up closes at this moment; null = when the event day ends. */
+  closesAt: Date | null;
+  askPhone: boolean;
+  askOrganization: boolean;
+  askPartySize: boolean;
+  /** One extra free-text question; null = none. */
+  question: string | null;
+  updatedAt: Date;
+}
+
+export interface RegistrationDoc {
+  _id: ObjectId;
+  eventId: ObjectId;
+  /** Ticket code in the QR (also the ticket page's secret). */
+  code: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  organization: string | null;
+  partySize: number;
+  answer: string | null;
+  /** online = signed up beforehand, onsite = walked in (self-service at the door or by staff). */
+  source: "online" | "onsite";
+  status: "registered" | "cancelled";
+  checkedInAt: Date | null;
+  /** "self" (on-site sign-up), "staff-link", or the user id of the host/photographer who scanned. */
+  checkedInBy: string | null;
+  consentAt: Date;
+  createdAt: Date;
 }
 
 export const GUEST_THEMES = ["light", "soft", "dark"] as const;

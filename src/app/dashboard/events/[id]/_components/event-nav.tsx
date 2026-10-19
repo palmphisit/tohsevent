@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Images, LayoutDashboard, MonitorPlay, Palette } from "lucide-react";
+import { ClipboardCheck, CreditCard, Images, LayoutDashboard, MonitorPlay, Palette } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -8,6 +8,7 @@ import { useEffect, useRef } from "react";
 const TABS = [
   { href: "", label: "ภาพรวม", icon: LayoutDashboard, owner: false },
   { href: "/photos", label: "รูปภาพ", icon: Images, owner: false },
+  { href: "/registration", label: "ลงทะเบียน", icon: ClipboardCheck, owner: true },
   { href: "/branding", label: "หน้าแขก", icon: Palette, owner: true },
   { href: "/slideshow", label: "Slideshow", icon: MonitorPlay, owner: true },
   { href: "/plan", label: "แพ็กเกจ", icon: CreditCard, owner: true },
@@ -27,7 +28,10 @@ export function EventNav({ eventId, owner, alerts }: { eventId: string; owner: b
       <ul className="flex min-w-max gap-1">
         {TABS.filter((t) => owner || !t.owner).map(({ href, label, icon: Icon }) => {
           const target = base + href;
-          const active = href === "" ? pathname === base : pathname.startsWith(target);
+          const active =
+            href === ""
+              ? pathname === base
+              : pathname.startsWith(target) || (href === "/registration" && pathname.startsWith(`${base}/checkin`));
           const badge = href === "/photos" ? alerts.photos : undefined;
           return (
             <li key={href}>
