@@ -4,7 +4,7 @@ import { Maximize, Minimize, Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BRAND_FONT_CLASS } from "@/app/brand-fonts";
 import { BrandMark } from "@/components/brand";
-import type { PublicEvent, PublicPhoto, SlideshowSettings } from "@/lib/api-client";
+import type { PublicEvent, PublicPhoto, Shoutout, SlideshowSettings } from "@/lib/api-client";
 import { DEFAULT_BRAND_COLOR, contrastText } from "@/lib/brand-fonts";
 import { formatDuration } from "@/lib/video";
 import "./slideshow.css";
@@ -27,6 +27,7 @@ const T = {
     newFromPhotographer: "New from the photographer",
     newFrom: (name: string) => `New photo from ${name}`,
     newPhoto: "New photo!",
+    igShared: "shared a photo",
   },
   th: {
     emptyTitle: "ยังไม่มีรูปในงาน",
@@ -42,6 +43,7 @@ const T = {
     newFromPhotographer: "รูปใหม่จากช่างภาพ",
     newFrom: (name: string) => `รูปใหม่จาก ${name}`,
     newPhoto: "รูปใหม่!",
+    igShared: "แชร์รูปขึ้นจอ",
   },
 };
 
@@ -61,10 +63,21 @@ export interface SlideshowViewProps {
   guestUrl: string;
   /** The real venue screen: keyboard, fullscreen, hidden cursor, screen wake lock. Off in previews. */
   interactive?: boolean;
+  /** Dashboard preview: set to a function that shows a sample Instagram popup. */
+  demoRef?: React.RefObject<(() => void) | null>;
 }
 
-export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactive = false, ...props }: SlideshowViewProps) {
-  const { photos, photosRef, total, loaded, takeFresh, savedSettings } = useSlideshowPhotos(
+export function SlideshowView({
+  slug,
+  apiKey,
+  event,
+  qrSvg,
+  guestUrl,
+  interactive = false,
+  demoRef,
+  ...props
+}: SlideshowViewProps) {
+  const { photos, photosRef, total, loaded, takeFresh, takeShoutout, savedSettings } = useSlideshowPhotos(
     slug,
     apiKey,
     interactive ? undefined : props.settings.sources,
@@ -87,6 +100,33 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
   } as React.CSSProperties;
 
   useVenueScreen(interactive, rootRef, { setIdle, setFullscreen, setPaused, skip: () => skipRef.current() });
+
+  // Instagram sends: one popup at a time over the whole screen, for the host's chosen seconds.
+  const [shout, setShout] = useState<{ popup: IgPopupContent; leaving: boolean; n: number } | null>(null);
+  const shoutCount = useRef(0);
+  useEffect(() => {
+    if (shout || paused) return;
+    const timer = setInterval(() => {
+      const next = takeShoutout();
+      if (next) setShout({ popup: next, leaving: false, n: ++shoutCount.current });
+    }, 700);
+    return () => clearInterval(timer);
+  }, [shout, paused, takeShoutout]);
+  useEffect(() => {
+    if (!shout) return;
+    const timer = shout.leaving
+      ? setTimeout(() => setShout(null), 550)
+      : setTimeout(() => setShout((s) => s && { ...s, leaving: true }), settings.igPopupSec * 1000);
+    return () => clearTimeout(timer);
+  }, [shout, settings.igPopupSec]);
+  useEffect(() => {
+    if (!demoRef) return;
+    demoRef.current = () =>
+      setShout({ popup: { photo: photosRef.current[0] ?? null, instagram: "your_instagram" }, leaving: false, n: ++shoutCount.current });
+    return () => {
+      demoRef.current = null;
+    };
+  }, [demoRef, photosRef]);
 
   const date = new Date(event.date).toLocaleDateString(INTL_LOCALE[locale], { dateStyle: "long", timeZone: "UTC" });
   const shortUrl = guestUrl.replace(/^https?:\/\//, "");
@@ -134,6 +174,8 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
             </div>
           )}
         </div>
+
+        {shout && <InstagramPopup key={shout.n} popup={shout.popup} leaving={shout.leaving} label={t.igShared} />}
 
         <aside className="ss-panel">
           <div className="ss-panel-text">
@@ -510,6 +552,74 @@ function Wall({
         </div>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Instagram share popup: the photo in an Instagram-gradient frame with the guest's @, light
+// rays, a glow and a confetti burst (all CSS; see slideshow.css).
+
+type IgPopupContent = { photo: PublicPhoto | null; instagram: Shoutout["instagram"] };
+
+const CONFETTI_COLORS = ["#feda75", "#fa7e1e", "#d62976", "#962fbf", "#4f5bd5", "#ffffff"];
+const CONFETTI = Array.from({ length: 40 }, (_, i) => {
+  const angle = (i / 40) * Math.PI * 2 + ((i * 37) % 11) / 18;
+  const distance = 30 + ((i * 53) % 34);
+  return {
+    "--x": `${(Math.cos(angle) * distance * 1.7).toFixed(1)}cqmin`,
+    "--y": `${(Math.sin(angle) * distance).toFixed(1)}cqmin`,
+    "--r": `${((i * 97) % 720) - 360}deg`,
+    "--c": CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    "--d": `${0.25 + (i % 7) * 0.035}s`,
+    round: i % 3 === 0,
+  };
+});
+
+function InstagramGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="ss-ig-logo" aria-hidden>
+      <defs>
+        <linearGradient id="ss-ig-grad" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stopColor="#feda75" />
+          <stop offset="0.3" stopColor="#fa7e1e" />
+          <stop offset="0.55" stopColor="#d62976" />
+          <stop offset="0.8" stopColor="#962fbf" />
+          <stop offset="1" stopColor="#4f5bd5" />
+        </linearGradient>
+      </defs>
+      <g fill="none" stroke="url(#ss-ig-grad)" strokeWidth="2.2">
+        <rect x="2.5" y="2.5" width="19" height="19" rx="5.5" />
+        <circle cx="12" cy="12" r="4.4" />
+      </g>
+      <circle cx="17.4" cy="6.6" r="1.4" fill="url(#ss-ig-grad)" />
+    </svg>
+  );
+}
+
+function InstagramPopup({ popup, leaving, label }: { popup: IgPopupContent; leaving: boolean; label: string }) {
+  return (
+    <div className="ss-ig-overlay" data-leaving={leaving}>
+      <div className="ss-ig-rays" />
+      <div className="ss-ig-glow" />
+      {CONFETTI.map(({ round, ...vars }, i) => (
+        <span key={i} className="ss-ig-confetti" data-round={round} style={vars as React.CSSProperties} />
+      ))}
+      <div className="ss-ig-card">
+        <div className="ss-ig-inner">
+          {popup.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- served directly from R2/CDN
+            <img src={popup.photo.displayUrl} alt="" />
+          ) : (
+            <div style={{ width: "48cqmin", height: "36cqmin", borderRadius: "1.6cqmin", background: "#e2e8f0" }} />
+          )}
+          <p className="ss-ig-handle">
+            <InstagramGlyph />
+            <span>@{popup.instagram}</span>
+          </p>
+          <p className="ss-ig-label">{label}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

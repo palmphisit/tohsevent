@@ -7,7 +7,7 @@ import type { BrandingAsset, BrandingAssetKind, BrandingEditorState, SaveBrandin
 import type { InviteView, MemberView } from "@/server/services/members";
 import type { HostPhoto, HostPhotoView } from "@/server/services/moderation";
 import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
-import type { SlideshowSettings } from "@/server/services/slideshow";
+import type { Shoutout, SlideshowSettings } from "@/server/services/slideshow";
 import type { Appearance } from "@/server/services/appearance";
 import type { DriveExportView } from "@/server/services/drive-export";
 import type { EventInfo } from "@/server/services/event-info";
@@ -16,7 +16,7 @@ import type { CustomPlanConfig } from "./custom-plan";
 import type { Locale } from "./i18n";
 import type { PreparedImage } from "./image";
 
-export type { CheckInResult, EventInfo, HostRegistration, RegistrationSettings, RegistrationStats, Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
+export type { Shoutout, CheckInResult, EventInfo, HostRegistration, RegistrationSettings, RegistrationStats, Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
 
 export interface GuestSession {
   id: string;
@@ -266,9 +266,17 @@ export function listSlideshowPhotos(
   const query = new URLSearchParams({ limit: String(params.limit ?? 60) });
   if (params.key) query.set("key", params.key);
   if (params.sources) query.set("sources", params.sources);
-  return request<{ items: PublicPhoto[]; total: number; settings: SlideshowSettings }>(`${base(slug)}/slideshow?${query}`, {
+  return request<{ items: PublicPhoto[]; total: number; settings: SlideshowSettings; shoutouts: Shoutout[] }>(`${base(slug)}/slideshow?${query}`, {
     cache: "no-store",
   });
+}
+
+export function listShareablePhotos(slug: string) {
+  return request<{ items: PublicPhoto[]; cooldownSec: number }>(`${base(slug)}/instagram`, { cache: "no-store" });
+}
+
+export function sendInstagramShare(slug: string, input: { photoId: string; instagram: string }) {
+  return request<{ instagram: string }>(`${base(slug)}/instagram`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export function saveSlideshow(eventId: string, input: SlideshowSettings) {

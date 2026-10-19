@@ -202,6 +202,10 @@ export interface SlideshowDoc {
   qrSize?: "small" | "medium" | "large";
   /** Seconds each photo stays on screen (spotlight) / speed of the wall. */
   intervalSec: number;
+  /** Guests may send one of their photos with their Instagram @ to the screen (missing = off). */
+  igShare?: boolean;
+  /** Seconds an Instagram share stays popped up on screen (missing = 8). */
+  igPopupSec?: number;
   updatedAt: Date;
 }
 
@@ -312,6 +316,8 @@ export interface PhotoDoc {
     at: Date;
     reviewedAt?: Date;
   };
+  /** The uploader sent this photo to the venue screen with their Instagram handle (latest send). */
+  shoutout?: { instagram: string; at: Date };
   createdAt: Date;
   completedAt: Date | null;
   deletedAt?: Date;

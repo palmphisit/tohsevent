@@ -1,7 +1,8 @@
 "use client";
 
-import { ExternalLink, LayoutGrid, MonitorPlay } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, LayoutGrid, MonitorPlay, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
+import { InstagramIcon } from "@/components/instagram-icon";
 import { SlideshowView } from "@/components/slideshow/slideshow-view";
 import { ApiError, saveSlideshow, type PublicEvent, type SlideshowSettings } from "@/lib/api-client";
 import { CopyButton } from "../../../_components/copy-button";
@@ -68,6 +69,7 @@ export function SlideshowEditor({
 }) {
   const [settings, setSettings] = useState(initial);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
+  const demoRef = useRef<(() => void) | null>(null);
   const dirty = JSON.stringify(settings) !== JSON.stringify(initial) && state !== "saved";
 
   function set<K extends keyof SlideshowSettings>(key: K, value: SlideshowSettings[K]) {
@@ -117,7 +119,15 @@ export function SlideshowEditor({
           {dirty && <span className="text-xs text-amber-600">ยังไม่ได้บันทึก จอในงานยังแสดงแบบเดิม</span>}
         </div>
         <div className="mt-2 aspect-video w-full overflow-hidden rounded-2xl shadow-lg ring-1 ring-slate-200">
-          <SlideshowView slug={slug} apiKey={apiKey} event={event} settings={settings} qrSvg={qrSvg} guestUrl={guestUrl} />
+          <SlideshowView
+            slug={slug}
+            apiKey={apiKey}
+            event={event}
+            settings={settings}
+            qrSvg={qrSvg}
+            guestUrl={guestUrl}
+            demoRef={demoRef}
+          />
         </div>
       </section>
 
@@ -253,6 +263,57 @@ export function SlideshowEditor({
           </div>
         </section>
       </div>
+
+      <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-300 via-pink-500 to-violet-600 text-white">
+              <InstagramIcon />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-medium">แชร์ Instagram ขึ้นจอ</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                แขกเลือกรูปที่ตัวเองอัปโหลด กรอก Instagram @ แล้วกดแชร์ จอจะเด้ง Popup รูปพร้อม @ ขึ้นกลางจอ
+                (แขกแชร์ได้คนละครั้งต่อ 30 วินาที)
+              </p>
+            </div>
+          </div>
+          <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+            <input
+              type="checkbox"
+              checked={settings.igShare}
+              onChange={(e) => set("igShare", e.target.checked)}
+              className="peer sr-only"
+              aria-label="เปิดแชร์ Instagram"
+            />
+            <span className="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30" />
+            <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
+          </label>
+        </div>
+        <div className={`mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end ${settings.igShare ? "" : "opacity-50"}`}>
+          <div>
+            <h3 className="mb-2 flex justify-between text-sm font-medium">
+              เวลาแสดง Popup <span className="font-normal text-slate-500">{settings.igPopupSec} วินาที/คน</span>
+            </h3>
+            <input
+              type="range"
+              min={3}
+              max={30}
+              value={settings.igPopupSec}
+              disabled={!settings.igShare}
+              onChange={(e) => set("igPopupSec", Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => demoRef.current?.()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-200"
+          >
+            <Sparkles className="h-4 w-4" /> ลองดู Popup ในตัวอย่าง
+          </button>
+        </div>
+      </section>
 
       <div className="flex items-center justify-end gap-3">
         {state === "saved" && <p className="text-sm text-emerald-600">บันทึกแล้ว จอในงานจะเปลี่ยนตามภายใน 10 วินาที</p>}

@@ -1,7 +1,7 @@
 "use client";
 
-import { Camera, Video } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Camera, Images, Video } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ApiError, putToStorage, type PublicPhoto } from "@/lib/api-client";
 import { prepareImage, type PreparedImage } from "@/lib/image";
 import { listPending, removePending, savePending, setPendingPhotoId } from "@/lib/upload-store";
@@ -10,7 +10,20 @@ import { useLocale } from "@/lib/use-locale";
 import { isVideoFile, prepareVideo, VideoRejected, type VideoLimits } from "@/lib/video";
 import type { PresignedUpload } from "@/server/services/photos";
 
-const CONCURRENCY = 2;
+/** Two files at a time; one on low-memory phones (decoding big camera photos needs a lot of RAM). */
+function concurrency(): number {
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  return memory !== undefined && memory <= 4 ? 1 : 2;
+}
+
+const noSubscribe = () => () => {};
+/**
+ * Android's file chooser mixes camera, files and apps, and specific MIME types send it to a
+ * file browser instead of the photo picker: Android gets a gallery button plus camera buttons.
+ */
+function useIsAndroid(): boolean {
+  return useSyncExternalStore(noSubscribe, () => /Android/i.test(navigator.userAgent), () => false);
+}
 // Presigned URLs live 10 minutes; re-reserve a little before that on retry.
 const RESERVATION_TTL_MS = 8 * 60 * 1000;
 
@@ -55,6 +68,9 @@ const T = {
     seconds: "seconds",
     pickMedia: "Take / choose photos or videos",
     pickPhotos: "Take / choose photos to upload",
+    fromGallery: "Choose from gallery",
+    takePhoto: "Take a photo",
+    recordVideo: "Record a video",
     videoLimits: (length: string, size: string) => `Videos up to ${length} · files up to ${size}`,
     resuming: (n: number) => `Resuming ${n} unfinished file${n === 1 ? "" : "s"} from last time`,
     progress: (done: number, total: number) => `Uploaded ${done}/${total} files`,
@@ -90,6 +106,9 @@ const T = {
     seconds: "วินาที",
     pickMedia: "ถ่าย / เลือกรูปหรือวิดีโอ",
     pickPhotos: "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด",
+    fromGallery: "เลือกจากคลังรูป",
+    takePhoto: "ถ่ายรูป",
+    recordVideo: "ถ่ายวิดีโอ",
     videoLimits: (length: string, size: string) => `วิดีโอยาวไม่เกิน ${length} · ไฟล์ไม่เกิน ${size}`,
     resuming: (n: number) => `กำลังอัปโหลดต่อ ${n} ไฟล์ที่ค้างจากครั้งก่อน`,
     progress: (done: number, total: number) => `อัปโหลดแล้ว ${done}/${total} ไฟล์`,
@@ -222,7 +241,10 @@ export function Uploader({
   label?: string;
 }) {
   const t = T[useLocale()];
+  const android = useIsAndroid();
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<QueueItem[]>([]);
   const [restoredCount, setRestoredCount] = useState(0);
   const itemsRef = useRef(new Map<string, QueueItem>());
@@ -283,7 +305,7 @@ export function Uploader({
   }
 
   function pump() {
-    while (activeRef.current < CONCURRENCY && queueRef.current.length > 0) {
+    while (activeRef.current < concurrency() && queueRef.current.length > 0) {
       const id = queueRef.current.shift()!;
       activeRef.current++;
       void process(id).finally(() => {
@@ -327,12 +349,18 @@ export function Uploader({
     };
   }, [persistKey]);
 
-  function onFiles(files: FileList | null) {
+  function onFiles(input: HTMLInputElement) {
+    const files = input.files;
     if (!files?.length) return;
     const entries = Array.from(files).map((file) => ({ id: crypto.randomUUID(), file }));
     if (persistKey) persistFiles(persistKey, entries);
     addItems(entries);
-    if (inputRef.current) inputRef.current.value = "";
+    input.value = "";
+  }
+
+  function open(ref: React.RefObject<HTMLInputElement | null>) {
+    const openPicker = () => ref.current?.click();
+    if (!gate || gate(openPicker)) openPicker();
   }
 
   function discard(id: string) {
@@ -352,25 +380,51 @@ export function Uploader({
 
   return (
     <div>
+      {/* Wildcard types only: they open the phone's photo picker (specific types fall back to a file browser). */}
       <input
         ref={inputRef}
         type="file"
-        accept={target.video ? "image/*,video/mp4,video/quicktime,video/webm" : "image/*"}
+        accept={target.video ? "image/*,video/*" : "image/*"}
         multiple
         hidden
-        onChange={(e) => onFiles(e.target.files)}
+        onChange={(e) => onFiles(e.currentTarget)}
       />
+      {android && (
+        <>
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => onFiles(e.currentTarget)} />
+          {target.video && (
+            <input ref={recorderRef} type="file" accept="video/*" capture="environment" hidden onChange={(e) => onFiles(e.currentTarget)} />
+          )}
+        </>
+      )}
       <button
         type="button"
-        onClick={() => {
-          const openPicker = () => inputRef.current?.click();
-          if (!gate || gate(openPicker)) openPicker();
-        }}
+        onClick={() => open(inputRef)}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-4 text-lg font-medium text-brand-contrast shadow-lg shadow-black/5 transition hover:opacity-95 active:scale-[0.99]"
       >
-        {target.video ? <Video className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
-        {label ?? (target.video ? t.pickMedia : t.pickPhotos)}
+        {android ? <Images className="h-5 w-5" /> : target.video ? <Video className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
+        {label ?? (android ? t.fromGallery : target.video ? t.pickMedia : t.pickPhotos)}
       </button>
+      {android && (
+        <div className={`mt-2 grid gap-2 ${target.video ? "grid-cols-2" : "grid-cols-1"}`}>
+          <button
+            type="button"
+            onClick={() => open(cameraRef)}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-surface px-4 py-3 font-medium ring-1 ring-line transition active:scale-[0.99]"
+          >
+            <Camera className="h-5 w-5" /> {t.takePhoto}
+          </button>
+          {target.video && (
+            <button
+              type="button"
+              onClick={() => open(recorderRef)}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-surface px-4 py-3 font-medium ring-1 ring-line transition active:scale-[0.99]"
+            >
+              <Video className="h-5 w-5" /> {t.recordVideo}
+            </button>
+          )}
+        </div>
+      )}
       {target.video && (
         <p className="mt-2 text-center text-xs text-muted">
           {t.videoLimits(formatLength(target.video.maxDurationSec, t), formatSize(target.video.maxBytes))}

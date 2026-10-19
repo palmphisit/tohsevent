@@ -6,6 +6,7 @@ import { emailEnabled } from "../email";
 import { appearanceOf, type Appearance } from "./appearance";
 import { eventInfoOf, hasEventInfo } from "./event-info";
 import { toPublicBranding, type PublicBranding } from "./branding";
+import { slideshowSettings } from "./slideshow";
 
 /** Shape of an event that is safe to send to guests. */
 export interface PublicEvent {
@@ -27,6 +28,8 @@ export interface PublicEvent {
   appearance: Appearance;
   /** Video clip limits on this plan; null when only photos are allowed. */
   video: { maxBytes: number; maxDurationSec: number } | null;
+  /** Guests can send a photo with their Instagram @ to the venue slideshow. */
+  instagramShare: boolean;
 }
 
 export function toPublicEvent(event: EventDoc): PublicEvent {
@@ -43,6 +46,7 @@ export function toPublicEvent(event: EventDoc): PublicEvent {
     video: planOf(event).video,
     appearance: appearanceOf(event),
     hasInfo: hasEventInfo(eventInfoOf(event)) || !!event.registration?.enabled,
+    instagramShare: slideshowSettings(event).igShare,
   };
 }
 

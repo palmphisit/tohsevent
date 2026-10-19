@@ -15,4 +15,6 @@ export const saveSlideshowSchema = z.object({
   panelSide: z.enum(["left", "right"]),
   qrSize: z.enum(["small", "medium", "large"]),
   intervalSec: z.number().int().min(L.intervalMin).max(L.intervalMax),
+  igShare: z.boolean(),
+  igPopupSec: z.number().int().min(L.igPopupMin).max(L.igPopupMax),
 });

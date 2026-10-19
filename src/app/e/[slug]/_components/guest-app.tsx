@@ -20,6 +20,7 @@ import {
 } from "@/lib/api-client";
 import { EventHeader, HeroHeader } from "./event-header";
 import { Gallery } from "./gallery";
+import { InstagramShare } from "./instagram-share";
 import { showError } from "@/lib/error-popup";
 import { useLocale } from "@/lib/use-locale";
 import { INTL_LOCALE, localePath } from "@/lib/i18n";
@@ -269,6 +270,8 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
           {t.uploadsClosed}
         </p>
       )}
+
+      {event.instagramShare && <InstagramShare slug={event.slug} ensureSession={ensureSession} />}
 
       {event.notifyAvailable && (
         <NotifyMe

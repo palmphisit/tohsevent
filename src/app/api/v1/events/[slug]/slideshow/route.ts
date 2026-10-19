@@ -4,7 +4,7 @@ import { readGuestSession } from "@/server/guest-session";
 import { HttpError, route } from "@/server/http";
 import { SLIDESHOW_SOURCES } from "@/server/models";
 import { requireOpenEventBySlug } from "@/server/services/events";
-import { listSlideshowPhotos, slideshowSettings, verifySlideshowKey } from "@/server/services/slideshow";
+import { listShoutouts, listSlideshowPhotos, slideshowSettings, verifySlideshowKey } from "@/server/services/slideshow";
 
 const querySchema = z.object({
   key: z.string().max(64).optional(),
@@ -28,6 +28,9 @@ export const GET = route(async (req: NextRequest, ctx: RouteContext<"/api/v1/eve
 
   // Settings ride along so a running venue screen picks up the host's changes without a reload.
   const settings = slideshowSettings(event);
-  const page = await listSlideshowPhotos(event, { sources: sources ?? settings.sources, limit });
-  return Response.json({ ...page, settings }, { headers: { "Cache-Control": "no-store" } });
+  const [page, shoutouts] = await Promise.all([
+    listSlideshowPhotos(event, { sources: sources ?? settings.sources, limit }),
+    listShoutouts(event),
+  ]);
+  return Response.json({ ...page, settings, shoutouts }, { headers: { "Cache-Control": "no-store" } });
 });
