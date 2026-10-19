@@ -6,7 +6,8 @@ import { collections } from "../db";
 import { env } from "../env";
 import { HttpError } from "../http";
 import { planOf, type EventDoc, type PaymentDoc } from "../models";
-import { expiryFor, PLANS, planRank, upgradePriceThb, type PlanTier } from "../plans";
+import { coversConfig, normalizeCustomConfig, quoteCustomPlan, type CustomPlanConfig } from "../../lib/custom-plan";
+import { customPlan, expiryFor, PLANS, planRank, upgradePriceThb, type FixedTier } from "../plans";
 import { stripe } from "../stripe";
 
 // Pay-per-event upgrades through Stripe Checkout (card / PromptPay, THB).
@@ -16,17 +17,36 @@ export function paymentsEnabled(): boolean {
   return stripe() !== null;
 }
 
-export async function createUpgradeCheckout(host: Host, event: EventDoc, toTier: PlanTier): Promise<{ url: string }> {
+export type UpgradeRequest = { tier: FixedTier } | { tier: "custom"; custom: CustomPlanConfig };
+
+/** What the event's current package cost (for paying only the difference). */
+function paidSoFarThb(event: EventDoc): number {
+  const plan = planOf(event);
+  if (plan.tier === "custom") return quoteCustomPlan(event.plan!.custom!).totalThb;
+  return PLANS[plan.tier as FixedTier].priceThb;
+}
+
+export async function createUpgradeCheckout(host: Host, event: EventDoc, request: UpgradeRequest): Promise<{ url: string }> {
   const client = stripe();
   if (!client) throw new HttpError(503, "payments_disabled", "Payments are not available yet");
 
   const fromTier = planOf(event).tier;
-  if (planRank(toTier) <= planRank(fromTier)) {
+  const toTier = request.tier;
+  const custom = request.tier === "custom" ? normalizeCustomConfig(request.custom) : undefined;
+  if (custom && fromTier === "custom") {
+    // A bigger Custom package: every limit must stay the same or grow.
+    if (!coversConfig(custom, event.plan!.custom!)) {
+      throw new HttpError(400, "not_an_upgrade", "A new Custom package cannot be smaller than the current one");
+    }
+  } else if (planRank(toTier) <= planRank(fromTier)) {
     throw new HttpError(400, "not_an_upgrade", "Choose a higher plan than the current one");
   }
   if (event.purgedAt) throw new HttpError(409, "event_purged", "This album has already been deleted");
 
-  const amountThb = upgradePriceThb(fromTier, toTier);
+  const amountThb = custom
+    ? quoteCustomPlan(custom).totalThb - (fromTier === "free" ? 0 : paidSoFarThb(event))
+    : upgradePriceThb(fromTier as FixedTier, toTier as FixedTier);
+  if (amountThb <= 0) throw new HttpError(400, "not_an_upgrade", "Nothing to pay for this change");
   const { payments } = await collections();
   const payment: PaymentDoc = {
     _id: new ObjectId(),
@@ -34,6 +54,7 @@ export async function createUpgradeCheckout(host: Host, event: EventDoc, toTier:
     ownerId: host.id,
     fromTier,
     toTier,
+    ...(custom ? { custom } : {}),
     amountThb,
     provider: "stripe",
     stripeSessionId: null,
@@ -55,8 +76,10 @@ export async function createUpgradeCheckout(host: Host, event: EventDoc, toTier:
           currency: "thb",
           unit_amount: amountThb * 100,
           product_data: {
-            name: `Tohs Event ${PLANS[toTier].name}`,
-            description: fromTier === "free" ? event.title : `${event.title} (อัปเกรดจาก ${PLANS[fromTier].name})`,
+            name: custom
+              ? `Tohs Event Custom · แขก ${custom.maxGuests.toLocaleString("th-TH")} · ${custom.maxFiles.toLocaleString("th-TH")} ไฟล์ · ${custom.storageGB} GB · ${custom.retentionDays} วัน`
+              : `Tohs Event ${PLANS[toTier as FixedTier].name}`,
+            description: fromTier === "free" ? event.title : `${event.title} (อัปเกรดจาก ${planOf(event).name})`,
           },
         },
       },
@@ -94,10 +117,16 @@ export async function fulfillCheckoutSession(session: Stripe.Checkout.Session): 
 
   const event = await events.findOne({ _id: payment.eventId });
   if (!event) return "ignored";
-  // Never downgrade if a later, higher upgrade was applied first.
-  if (planRank(payment.toTier) <= planRank(planOf(event).tier)) return "applied";
+  const current = planOf(event).tier;
+  if (payment.toTier === "custom") {
+    // Never shrink: a later, bigger Custom purchase may have been applied first.
+    if (current === "custom" && event.plan?.custom && !coversConfig(payment.custom!, event.plan.custom)) return "applied";
+  } else if (planRank(payment.toTier) <= planRank(current)) {
+    // Never downgrade if a later, higher upgrade was applied first.
+    return "applied";
+  }
 
-  const plan = PLANS[payment.toTier];
+  const plan = payment.toTier === "custom" ? customPlan(payment.custom!) : PLANS[payment.toTier];
   await audit({
     eventId: event._id,
     actor: { type: "system", id: "stripe" },
@@ -109,9 +138,9 @@ export async function fulfillCheckoutSession(session: Stripe.Checkout.Session): 
     { _id: event._id },
     {
       $set: {
-        plan: { tier: plan.tier, upgradedAt: now },
+        plan: { tier: plan.tier, upgradedAt: now, ...(payment.custom ? { custom: payment.custom } : {}) },
         "settings.maxPhotosPerGuest": plan.maxPhotosPerGuest,
-        expiresAt: expiryFor(event.date, plan.tier, now),
+        expiresAt: expiryFor(event.date, plan.retentionDays, now),
         // An album that expired but has not been purged yet reopens after upgrading.
         ...(event.status === "expired" && !event.purgedAt ? { status: "live" } : {}),
         updatedAt: now,

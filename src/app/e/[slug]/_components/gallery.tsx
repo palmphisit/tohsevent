@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Camera, ImagePlus } from "lucide-react";
+import { Camera, Check, CheckSquare, Download, ImagePlus, Share2, X } from "lucide-react";
 import { Lightbox } from "@/components/lightbox";
 import { MediaThumb } from "@/components/media-thumb";
 import { listPhotos, type Appearance, type PublicPhoto } from "@/lib/api-client";
-import { DeleteMyPhotoButton, ReportPhotoButton, SavePhotoButton } from "./photo-actions";
+import { showError } from "@/lib/error-popup";
+import { GestureRequired, mediaFile, prefetchMedia, saveToDevice, shareMedia, type ShareInfo } from "@/lib/save-share";
+import { DeleteMyPhotoButton, ReportPhotoButton, SaveMediaButton, ShareMediaButton, ShareSheet } from "./photo-actions";
 
 type Source = PublicPhoto["source"];
 
@@ -14,6 +16,8 @@ const TABS: { source: Source; label: string }[] = [
   { source: "guest", label: "รูปจากแขก" },
 ];
 const POLL_MS = 15_000;
+/** Share sheets and browsers cope with this many files at once. */
+const MAX_SELECTED = 30;
 
 export function Gallery({
   slug,
@@ -21,12 +25,14 @@ export function Gallery({
   ensureSession,
   layout = "grid",
   defaultTab = "guest",
+  shareInfo,
 }: {
   slug: string;
   recentUploads: PublicPhoto[];
   ensureSession: () => Promise<unknown>;
   layout?: Appearance["gallery"];
   defaultTab?: Source;
+  shareInfo: ShareInfo;
 }) {
   const [source, setSource] = useState<Source>(defaultTab);
 
@@ -54,6 +60,7 @@ export function Gallery({
         recentUploads={source === "guest" ? recentUploads : []}
         ensureSession={ensureSession}
         layout={layout}
+        shareInfo={shareInfo}
       />
     </section>
   );
@@ -65,13 +72,17 @@ function PhotoGrid({
   recentUploads,
   ensureSession,
   layout,
+  shareInfo,
 }: {
   slug: string;
   source: Source;
   recentUploads: PublicPhoto[];
   ensureSession: () => Promise<unknown>;
   layout: Appearance["gallery"];
+  shareInfo: ShareInfo;
 }) {
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
@@ -153,19 +164,68 @@ function PhotoGrid({
 
   return (
     <>
-      <ul className={layout === "masonry" ? "mt-4 columns-2 gap-2 sm:columns-3" : "mt-4 grid grid-cols-3 gap-1.5 sm:grid-cols-4"}>
-        {visible.map((photo, i) => (
-          <li
-            key={photo.id}
-            className={`overflow-hidden rounded-xl bg-surface ${layout === "masonry" ? "mb-2 break-inside-avoid" : "aspect-square"}`}
-            style={layout === "masonry" ? { aspectRatio: `${photo.width} / ${photo.height}` } : undefined}
-          >
-            <button type="button" onClick={() => setOpenIndex(i)} className="relative block h-full w-full">
-              <MediaThumb photo={photo} alt={photo.uploaderName ? `รูปจาก ${photo.uploaderName}` : "รูปในงาน"} />
-            </button>
-          </li>
-        ))}
+      <div className="mt-4 flex items-center justify-between text-sm">
+        <span className="text-muted">{visible.length.toLocaleString("th-TH")} รายการ</span>
+        <button
+          type="button"
+          onClick={() => {
+            setSelecting((v) => !v);
+            setSelected([]);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium text-brand hover:bg-surface"
+        >
+          {selecting ? <X className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
+          {selecting ? "ยกเลิก" : "เลือกหลายรูป"}
+        </button>
+      </div>
+      <ul className={layout === "masonry" ? "mt-2 columns-2 gap-2 sm:columns-3" : "mt-2 grid grid-cols-3 gap-1.5 sm:grid-cols-4"}>
+        {visible.map((photo, i) => {
+          const picked = selected.includes(photo.id);
+          return (
+            <li
+              key={photo.id}
+              className={`overflow-hidden rounded-xl bg-surface ${layout === "masonry" ? "mb-2 break-inside-avoid" : "aspect-square"} ${
+                picked ? "ring-3 ring-brand ring-offset-2 ring-offset-[var(--g-page,#fff)]" : ""
+              }`}
+              style={layout === "masonry" ? { aspectRatio: `${photo.width} / ${photo.height}` } : undefined}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (!selecting) return setOpenIndex(i);
+                  if (picked) return setSelected((ids) => ids.filter((id) => id !== photo.id));
+                  if (selected.length >= MAX_SELECTED) return showError(`เลือกได้ครั้งละไม่เกิน ${MAX_SELECTED} รายการ`);
+                  prefetchMedia(photo); // ready before "save" is tapped, so the share sheet can open
+                  setSelected((ids) => [...ids, photo.id]);
+                }}
+                aria-pressed={selecting ? picked : undefined}
+                className="relative block h-full w-full"
+              >
+                <MediaThumb photo={photo} alt={photo.uploaderName ? `รูปจาก ${photo.uploaderName}` : "รูปในงาน"} />
+                {selecting && (
+                  <span
+                    className={`absolute top-1.5 left-1.5 grid h-6 w-6 place-items-center rounded-full border-2 border-white shadow ${
+                      picked ? "bg-brand text-brand-contrast" : "bg-black/25"
+                    }`}
+                  >
+                    {picked && <Check className="h-3.5 w-3.5" />}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
       </ul>
+      {selecting && (
+        <SelectionBar
+          photos={visible.filter((p) => selected.includes(p.id))}
+          shareInfo={shareInfo}
+          onDone={() => {
+            setSelecting(false);
+            setSelected([]);
+          }}
+        />
+      )}
       {cursor && (
         <button
           onClick={loadMore}
@@ -183,7 +243,8 @@ function PhotoGrid({
           onNavigate={setOpenIndex}
           actions={(photo) => (
             <>
-              <SavePhotoButton photo={photo} />
+              <SaveMediaButton photo={photo} />
+              <ShareMediaButton photo={photo} info={shareInfo} />
               {photo.mine ? (
                 <DeleteMyPhotoButton slug={slug} photo={photo} onDeleted={onDeleted} />
               ) : (
@@ -193,6 +254,65 @@ function PhotoGrid({
           )}
         />
       )}
+    </>
+  );
+}
+
+/** Bottom bar in select mode: save or share the picked photos and videos in one go. */
+function SelectionBar({ photos, shareInfo, onDone }: { photos: PublicPhoto[]; shareInfo: ShareInfo; onDone: () => void }) {
+  const [phase, setPhase] = useState<"idle" | "working" | "tap-save" | "tap-share">("idle");
+  const [fallback, setFallback] = useState(false);
+  const count = photos.length;
+
+  async function run(action: "save" | "share") {
+    setPhase("working");
+    try {
+      const files = await Promise.all(photos.map(mediaFile));
+      if (action === "save") {
+        if ((await saveToDevice(files)) === "saved") onDone();
+      } else if ((await shareMedia(files, shareInfo)) === "unsupported") {
+        setFallback(true);
+      }
+      setPhase("idle");
+    } catch (error) {
+      if (error instanceof GestureRequired) setPhase(action === "save" ? "tap-save" : "tap-share");
+      else {
+        setPhase("idle");
+        showError("เตรียมไฟล์ไม่สำเร็จ ลองอีกครั้ง");
+      }
+    }
+  }
+
+  const button = "inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium disabled:opacity-40";
+  return (
+    <>
+      <div className="sticky bottom-4 z-30 mt-4 rounded-2xl bg-card p-3 shadow-xl ring-1 ring-line">
+        <p className="mb-2 text-center text-xs text-muted">
+          {count === 0 ? "แตะรูปเพื่อเลือก" : `เลือกแล้ว ${count} รายการ`}
+          {phase === "working" && " · กำลังเตรียมไฟล์…"}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={count === 0 || phase === "working"}
+            onClick={() => run("save")}
+            className={`${button} bg-brand text-brand-contrast`}
+          >
+            <Download className="h-4 w-4" />
+            {phase === "tap-save" ? "แตะเพื่อบันทึก" : "บันทึกลงเครื่อง"}
+          </button>
+          <button
+            type="button"
+            disabled={count === 0 || phase === "working"}
+            onClick={() => run("share")}
+            className={`${button} bg-surface text-ink`}
+          >
+            <Share2 className="h-4 w-4" />
+            {phase === "tap-share" ? "แตะเพื่อแชร์" : "แชร์"}
+          </button>
+        </div>
+      </div>
+      {fallback && <ShareSheet info={shareInfo} onClose={() => setFallback(false)} />}
     </>
   );
 }

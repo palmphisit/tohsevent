@@ -1,7 +1,11 @@
 // Pay-per-event packages. All prices and limits live here so they can be tuned in one place.
 
+import { CUSTOM_PLAN, type CustomPlanConfig } from "../lib/custom-plan";
+
+/** Fixed packages. "custom" is built per event from what the host picked (see customPlan). */
 export const PLAN_TIERS = ["free", "standard", "premium"] as const;
-export type PlanTier = (typeof PLAN_TIERS)[number];
+export type FixedTier = (typeof PLAN_TIERS)[number];
+export type PlanTier = FixedTier | "custom";
 
 export interface Plan {
   tier: PlanTier;
@@ -19,9 +23,11 @@ export interface Plan {
   originals: boolean;
   /** Video uploads (guests and official); null = photos only. */
   video: { maxBytes: number; maxDurationSec: number } | null;
+  /** Total stored bytes the album may use; null = limited by file count only. */
+  maxStorageBytes: number | null;
 }
 
-export const PLANS: Record<PlanTier, Plan> = {
+export const PLANS: Record<FixedTier, Plan> = {
   free: {
     tier: "free",
     name: "Free",
@@ -34,6 +40,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     branding: false,
     originals: false,
     video: null,
+    maxStorageBytes: null,
   },
   standard: {
     tier: "standard",
@@ -47,6 +54,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     branding: false,
     originals: false,
     video: { maxBytes: 150 * 1024 * 1024, maxDurationSec: 60 },
+    maxStorageBytes: null,
   },
   premium: {
     tier: "premium",
@@ -60,6 +68,7 @@ export const PLANS: Record<PlanTier, Plan> = {
     branding: true,
     originals: true,
     video: { maxBytes: 400 * 1024 * 1024, maxDurationSec: 180 },
+    maxStorageBytes: null,
   },
 };
 
@@ -68,12 +77,30 @@ export const PURGE_GRACE_DAYS = 7;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function planRank(tier: PlanTier): number {
-  return PLAN_TIERS.indexOf(tier);
+/** The Custom package for one event: everything Premium has, sized to what the host bought. */
+export function customPlan(config: CustomPlanConfig, priceThb = 0): Plan {
+  return {
+    tier: "custom",
+    name: "Custom",
+    priceThb,
+    maxGuests: config.maxGuests,
+    maxPhotos: config.maxFiles,
+    maxPhotosPerGuest: 500,
+    retentionDays: config.retentionDays,
+    watermark: false,
+    branding: true,
+    originals: true,
+    video: { maxBytes: CUSTOM_PLAN.maxFileBytes, maxDurationSec: CUSTOM_PLAN.maxVideoSeconds },
+    maxStorageBytes: config.storageGB * 1024 ** 3,
+  };
 }
 
-/** Price to move from `from` to a higher tier `to` (pay the difference). */
-export function upgradePriceThb(from: PlanTier, to: PlanTier): number {
+export function planRank(tier: PlanTier): number {
+  return tier === "custom" ? PLAN_TIERS.length : PLAN_TIERS.indexOf(tier);
+}
+
+/** Price to move from `from` to a higher fixed tier `to` (pay the difference). */
+export function upgradePriceThb(from: FixedTier, to: FixedTier): number {
   return PLANS[to].priceThb - PLANS[from].priceThb;
 }
 
@@ -81,8 +108,8 @@ export function upgradePriceThb(from: PlanTier, to: PlanTier): number {
  * End of the retention window: `retentionDays` full days after the event day,
  * counted from today instead if the event is already in the past.
  */
-export function expiryFor(eventDate: Date, tier: PlanTier, now = new Date()): Date {
+export function expiryFor(eventDate: Date, retentionDays: number, now = new Date()): Date {
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const base = Math.max(eventDate.getTime(), today);
-  return new Date(base + (PLANS[tier].retentionDays + 1) * DAY_MS);
+  return new Date(base + (retentionDays + 1) * DAY_MS);
 }

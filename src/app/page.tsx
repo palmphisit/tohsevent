@@ -22,6 +22,7 @@ import Link from "next/link";
 import { BrandLogo, BrandMark } from "@/components/brand";
 import { LEGAL } from "@/lib/legal";
 import { SITE } from "@/lib/site";
+import { CUSTOM_PLAN } from "@/lib/custom-plan";
 import { PLANS, PLAN_TIERS } from "@/server/plans";
 
 export const metadata = { alternates: { canonical: "/" } };
@@ -100,12 +101,15 @@ export default function Home() {
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Web, iOS, Android",
       description: SITE.description,
-      offers: PLAN_TIERS.map((tier) => ({
-        "@type": "Offer",
-        name: PLANS[tier].name,
-        price: PLANS[tier].priceThb,
-        priceCurrency: "THB",
-      })),
+      offers: [
+        ...PLAN_TIERS.map((tier) => ({
+          "@type": "Offer",
+          name: PLANS[tier].name,
+          price: PLANS[tier].priceThb,
+          priceCurrency: "THB",
+        })),
+        { "@type": "Offer", name: "Custom", price: CUSTOM_PLAN.basePriceThb, priceCurrency: "THB" },
+      ],
     },
     {
       "@context": "https://schema.org",
@@ -217,7 +221,7 @@ export default function Home() {
             <p className="mx-auto mt-3 max-w-xl text-center text-slate-600">
               เริ่มฟรี แล้วอัปเกรดเมื่อต้องการ รูปเดิมยังอยู่ครบ ชำระด้วยบัตรหรือ PromptPay
             </p>
-            <div className="mt-12 grid gap-6 md:grid-cols-3">
+            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {PLAN_TIERS.map((tier) => {
                 const plan = PLANS[tier];
                 const featured = tier === "standard";
@@ -264,6 +268,32 @@ export default function Home() {
                   </div>
                 );
               })}
+              <div className="relative flex flex-col rounded-2xl bg-gradient-to-br from-primary-ink via-primary to-accent p-7 text-white shadow-xl shadow-blue-600/20">
+                <h3 className="flex items-center gap-2 text-lg font-semibold">
+                  <Sparkles className="h-5 w-5" /> Custom
+                </h3>
+                <p className="mt-3 text-4xl font-semibold tracking-tight">
+                  <span className="text-base font-normal text-blue-100">เริ่ม </span>฿{thb(CUSTOM_PLAN.basePriceThb)}
+                  <span className="text-base font-normal text-blue-100"> / งาน</span>
+                </p>
+                <ul className="mt-6 flex-1 space-y-2.5 text-sm text-blue-50">
+                  {[
+                    "เลือกจำนวนแขก รูปและวิดีโอ เองได้",
+                    "เลือกพื้นที่จัดเก็บและระยะเวลาเก็บเอง",
+                    "ไม่จำกัดขนาดไฟล์ (สูงสุด 5 GB ต่อไฟล์)",
+                    "วิดีโอยาวสูงสุด 3 ชั่วโมง",
+                    "ทุกอย่างของ Premium",
+                    "ราคาประเมินทันทีตามที่เลือก",
+                  ].map((f) => (
+                    <li key={f} className="flex gap-2">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-sky-200" /> {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href={START_HREF} className="mt-7 rounded-xl bg-white px-4 py-3 text-center font-medium text-primary-ink hover:bg-blue-50">
+                  ประเมินราคา
+                </Link>
+              </div>
             </div>
             <p className="mt-8 text-center text-sm text-slate-500">
               ช่างภาพและออร์แกไนเซอร์ที่ทำหลายงานต่อเดือน: แพ็กเกจ Pro รายเดือนกำลังจะเปิดเร็ว ๆ นี้

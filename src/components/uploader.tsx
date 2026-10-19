@@ -38,6 +38,16 @@ const VIDEO_ERRORS: Record<string, string> = {
   video_unsupported: "ไฟล์วิดีโอนี้ไม่รองรับ",
 };
 
+function formatLength(sec: number): string {
+  if (sec >= 3600) return `${Math.round(sec / 360) / 10} ชั่วโมง`;
+  if (sec >= 120) return `${Math.round(sec / 60)} นาที`;
+  return `${Math.round(sec)} วินาที`;
+}
+
+function formatSize(bytes: number): string {
+  return bytes >= 1024 ** 3 ? `${Math.round((bytes / 1024 ** 3) * 10) / 10} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof VideoRejected) return VIDEO_ERRORS[error.code];
   if (error instanceof ApiError) {
@@ -45,6 +55,8 @@ function errorMessage(error: unknown): string {
     if (error.code === "quota_exceeded") return "อัปโหลดครบจำนวนที่งานกำหนดแล้ว";
     if (error.code === "uploads_disabled") return "งานนี้ปิดรับรูปแล้ว";
     if (error.code === "photo_limit_reached") return "อัลบั้มนี้เต็มแล้ว";
+    if (error.code === "storage_full") return "พื้นที่ของงานนี้เต็มแล้ว";
+    if (error.code === "original_too_large") return "ไฟล์ต้นฉบับใหญ่เกินแพ็กเกจ";
     if (error.code === "event_full") return "งานนี้มีแขกครบจำนวนแล้ว";
     if (error.code === "consent_declined") return "ต้องยอมรับนโยบายก่อนอัปโหลด";
     if (error.code === "unsupported_original") return "ชนิดไฟล์ต้นฉบับไม่รองรับ";
@@ -58,7 +70,7 @@ function isPermanent(error: unknown): boolean {
   if (error instanceof VideoRejected) return true;
   return (
     error instanceof ApiError &&
-    ["quota_exceeded", "uploads_disabled", "photo_limit_reached", "event_full", ...Object.keys(VIDEO_ERRORS)].includes(
+    ["quota_exceeded", "uploads_disabled", "photo_limit_reached", "storage_full", "event_full", ...Object.keys(VIDEO_ERRORS)].includes(
       error.code,
     )
   );
@@ -301,8 +313,7 @@ export function Uploader({
       </button>
       {target.video && (
         <p className="mt-2 text-center text-xs text-muted">
-          วิดีโอยาวไม่เกิน {Math.round(target.video.maxDurationSec)} วินาที · ไฟล์ไม่เกิน{" "}
-          {Math.round(target.video.maxBytes / 1024 / 1024)} MB
+          วิดีโอยาวไม่เกิน {formatLength(target.video.maxDurationSec)} · ไฟล์ไม่เกิน {formatSize(target.video.maxBytes)}
         </p>
       )}
 

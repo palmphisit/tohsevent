@@ -10,6 +10,7 @@ import type { PresignedUpload, PublicPhoto } from "@/server/services/photos";
 import type { SlideshowSettings } from "@/server/services/slideshow";
 import type { Appearance } from "@/server/services/appearance";
 import type { DriveExportView } from "@/server/services/drive-export";
+import type { CustomPlanConfig } from "./custom-plan";
 import type { PreparedImage } from "./image";
 
 export type { Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
@@ -201,10 +202,12 @@ export async function completeOfficialUpload(eventId: string, photoId: string): 
   return photo;
 }
 
-export async function startUpgradeCheckout(eventId: string, tier: "standard" | "premium"): Promise<string> {
+export type UpgradeRequest = { tier: "standard" | "premium" } | { tier: "custom"; custom: CustomPlanConfig };
+
+export async function startUpgradeCheckout(eventId: string, upgrade: UpgradeRequest): Promise<string> {
   const { url } = await request<{ url: string }>(`${hostBase(eventId)}/checkout`, {
     method: "POST",
-    body: JSON.stringify({ tier }),
+    body: JSON.stringify(upgrade),
   });
   return url;
 }

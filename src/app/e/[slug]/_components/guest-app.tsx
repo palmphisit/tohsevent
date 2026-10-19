@@ -183,6 +183,11 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
         ensureSession={ensureSession}
         layout={appearance.gallery}
         defaultTab={appearance.defaultTab}
+        shareInfo={{
+          title: event.title,
+          text: `รูปจากงาน ${event.title}`,
+          url: typeof window === "undefined" ? `/e/${event.slug}` : `${window.location.origin}/e/${event.slug}`,
+        }}
       />
       {event.branding && event.branding.sponsors.length > 0 && <Sponsors sponsors={event.branding.sponsors} />}
       {consentOpen && <ConsentSheet onAnswer={answerConsent} />}

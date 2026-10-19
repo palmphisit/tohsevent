@@ -1,14 +1,16 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { planOf } from "@/server/models";
-import { PLANS, PLAN_TIERS, planRank, PURGE_GRACE_DAYS, upgradePriceThb, type Plan } from "@/server/plans";
+import { quoteCustomPlan } from "@/lib/custom-plan";
+import { PLANS, PLAN_TIERS, planRank, PURGE_GRACE_DAYS, upgradePriceThb, type FixedTier, type Plan } from "@/server/plans";
 import { paymentsEnabled, reconcileCheckout } from "@/server/services/billing";
+import { getHostEvent } from "@/server/services/host-events";
 import { loadHostEventPage } from "../load-event";
+import { CustomPlanBuilder } from "./custom-plan-builder";
 import { UpgradeButton } from "./upgrade-button";
 
 export default function EventPlanPage({ params, searchParams }: PageProps<"/dashboard/events/[id]/plan">) {
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+    <main className="mx-auto w-full max-w-5xl px-4 pt-6 pb-12">
       <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-slate-100" />}>
         <PlanDetails params={params} searchParams={searchParams} />
       </Suspense>
@@ -29,7 +31,8 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
   let paymentStatus = null;
   if (checkout === "success" && sessionId) {
     paymentStatus = await reconcileCheckout(event, sessionId);
-    event = await loadHostEventPage(id);
+    // Fresh read (the cached loader would return the event from before the payment).
+    event = await getHostEvent(event.ownerId!, event._id);
   }
   const plan = planOf(event);
   const photosUsed = event.usage?.photos ?? event.counters.photos;
@@ -37,10 +40,7 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
 
   return (
     <>
-      <Link href={`/dashboard/events/${id}`} className="text-sm text-slate-500 hover:text-slate-900">
-        ← {event.title}
-      </Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">แพ็กเกจของงาน</h1>
+      <h1 className="text-xl font-semibold tracking-tight">แพ็กเกจของงาน</h1>
 
       {checkout === "success" && (
         <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -85,7 +85,7 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
                 <UpgradeButton
                   eventId={id}
                   tier={tier as "standard" | "premium"}
-                  priceThb={upgradePriceThb(plan.tier, tier)}
+                  priceThb={upgradePriceThb(plan.tier as FixedTier, tier)}
                   isDifference={plan.tier !== "free"}
                   disabled={!canPay || !!event.purgedAt}
                 />
@@ -94,6 +94,18 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
           );
         })}
       </div>
+      <CustomPlanBuilder
+        eventId={id}
+        current={plan.tier === "custom" ? (event.plan?.custom ?? null) : null}
+        paidThb={
+          plan.tier === "custom" && event.plan?.custom
+            ? quoteCustomPlan(event.plan.custom).totalThb
+            : plan.tier === "free"
+              ? 0
+              : PLANS[plan.tier as FixedTier].priceThb
+        }
+        canPay={canPay && !event.purgedAt}
+      />
       {!canPay && <p className="mt-4 text-sm text-slate-500">ระบบชำระเงินยังไม่เปิดใช้งานใน environment นี้</p>}
       <p className="mt-4 text-xs text-slate-500">
         ชำระครั้งเดียวต่องาน ผ่านบัตรเครดิต/เดบิต หรือ PromptPay อายุอัลบั้มนับจากวันจัดงาน (หรือจากวันอัปเกรด ถ้างานผ่านไปแล้ว)

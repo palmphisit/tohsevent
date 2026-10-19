@@ -5,6 +5,8 @@ export interface EventUsage {
   plan: { tier: string; name: string };
   files: { used: number; max: number };
   guests: { used: number; max: number };
+  /** Bytes the plan allows (Custom); null = limited by file count only. */
+  maxBytes: number | null;
   videos: number;
   photos: number;
   /** Everything stored for the album (display copies, thumbnails, clips, originals). */
@@ -47,7 +49,8 @@ export async function eventUsage(event: EventDoc): Promise<EventUsage> {
     guests: { used: event.counters.guests, max: plan.maxGuests },
     videos,
     photos: Math.max(0, (agg?.files ?? 0) - videos),
-    bytes: agg?.bytes ?? 0,
+    bytes: event.usage?.bytes ?? agg?.bytes ?? 0,
+    maxBytes: plan.maxStorageBytes,
     expiresAt: event.expiresAt,
   };
 }

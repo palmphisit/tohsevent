@@ -5,7 +5,7 @@ import { deleteObjects } from "../storage";
 import { brandingKeys } from "./branding";
 import { sendExpiryReminders } from "./notifications";
 import { removeOriginal } from "./originals";
-import { releasePhotoQuota } from "./photos";
+import { releaseQuota, storedBytes } from "./photos";
 import { backfillVideoPosters } from "./video-posters";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -44,7 +44,7 @@ export async function runDailyCleanup(now = new Date()): Promise<CleanupResult> 
     // Deleting a key that was never uploaded is a no-op in S3/R2.
     await deleteObjects(Object.values(photo.keys).filter((key): key is string => !!key));
     const removed = await photos.deleteOne({ _id: photo._id, status: "pending" });
-    if (removed.deletedCount) await releasePhotoQuota(photo.eventId, 1);
+    if (removed.deletedCount) await releaseQuota(photo.eventId, 1, storedBytes(photo));
     if (removed.deletedCount && photo.uploader.type === "guest") {
       await guestSessions.updateOne(
         { _id: photo.uploader.id, uploadCount: { $gt: 0 } },

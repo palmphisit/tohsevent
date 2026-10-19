@@ -22,7 +22,7 @@ export function UpgradeButton({
   async function upgrade() {
     setPending(true);
     try {
-      window.location.assign(await startUpgradeCheckout(eventId, tier));
+      window.location.assign(await startUpgradeCheckout(eventId, { tier }));
     } catch {
       showError("เริ่มการชำระเงินไม่สำเร็จ ลองอีกครั้ง");
       setPending(false);

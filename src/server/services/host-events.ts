@@ -6,6 +6,7 @@ import { env } from "../env";
 import { HttpError, parseObjectId } from "../http";
 import { planOf, type EventDoc, type EventStatus } from "../models";
 import { hashPassword } from "../password";
+import { publicUrl } from "../storage";
 import { expiryFor, PLANS, type PlanTier } from "../plans";
 
 const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"; // no look-alikes (i/l/1, o/0)
@@ -160,7 +161,7 @@ export async function createHostEvent(ownerId: ObjectId, input: CreateEventInput
     status: "live",
     // Every event starts on the Free plan; upgrading extends the expiry (see billing.ts).
     plan: { tier: "free", upgradedAt: null },
-    expiresAt: expiryFor(date, "free", now),
+    expiresAt: expiryFor(date, PLANS.free.retentionDays, now),
     counters: { photos: 0, guests: 0 },
     usage: { photos: 0 },
     purgedAt: null,
@@ -202,7 +203,7 @@ export async function updateHostEvent(ownerId: ObjectId, eventId: ObjectId, inpu
   if (input.date !== undefined) {
     const date = parseDay(input.date);
     set.date = date;
-    set.expiresAt = expiryFor(date, planOf(current).tier);
+    set.expiresAt = expiryFor(date, planOf(current).retentionDays);
   }
   if (input.guestUpload !== undefined) set["settings.guestUpload"] = input.guestUpload;
   if (input.status !== undefined) set.status = input.status;
@@ -220,4 +221,21 @@ export async function updateHostEvent(ownerId: ObjectId, eventId: ObjectId, inpu
   const updated = await events.findOneAndUpdate({ _id: eventId, ownerId }, { $set: set }, { returnDocument: "after" });
   if (!updated) throw new HttpError(404, "event_not_found");
   return updated;
+}
+
+/** Latest photo thumbnails per event (for the dashboard cards), newest first. */
+export async function eventPreviews(eventIds: ObjectId[], perEvent = 4): Promise<Map<string, string[]>> {
+  const { photos } = await collections();
+  // One small top-N query per event (uses the eventId index) instead of grouping every photo.
+  const rows = await Promise.all(
+    eventIds.map(async (eventId) => {
+      const docs = await photos
+        .find({ eventId, status: "ready" }, { projection: { "keys.thumb": 1 } })
+        .sort({ _id: -1 })
+        .limit(perEvent)
+        .toArray();
+      return [eventId.toHexString(), docs.map((d) => publicUrl(d.keys.thumb))] as const;
+    }),
+  );
+  return new Map(rows);
 }

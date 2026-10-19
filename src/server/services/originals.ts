@@ -14,6 +14,8 @@ import {
   presignPart,
 } from "../originals-storage";
 import type { EventRole } from "./host-events";
+import { CUSTOM_PLAN } from "../../lib/custom-plan";
+import { releaseQuota, reserveQuota } from "./photos";
 
 // Full-resolution originals uploaded by the owner or invited photographers next to the
 // display/thumb copies of an official photo. Multipart so large files survive flaky
@@ -21,7 +23,9 @@ import type { EventRole } from "./host-events";
 
 export const ORIGINAL_CONTENT_TYPES = ["image/jpeg", "image/png", "image/tiff", "image/heic", "image/webp"] as const;
 export const ORIGINAL_LIMITS = {
+  /** Per file on Premium; Custom allows up to CUSTOM_PLAN.maxFileBytes (also the schema's hard cap). */
   maxBytes: 200 * 1024 * 1024,
+  hardMaxBytes: CUSTOM_PLAN.maxFileBytes,
   partSize: 16 * 1024 * 1024,
   maxSignPerRequest: 50,
 } as const;
@@ -84,6 +88,11 @@ export async function startOriginalUpload(
     };
   }
   if (existing?.status === "ready") throw new HttpError(409, "original_exists", "This photo already has an original");
+  const maxBytes = planOf(event).tier === "custom" ? CUSTOM_PLAN.maxFileBytes : ORIGINAL_LIMITS.maxBytes;
+  if (input.bytes > maxBytes) throw new HttpError(413, "original_too_large", "The original file is too large for this plan");
+  // The original's bytes count toward the album's storage (a replaced unfinished upload gives its share back).
+  await reserveQuota(event, 0, input.bytes);
+  if (existing) await releaseQuota(event._id, 0, existing.bytes);
   if (existing?.uploadId) await abortMultipart(existing.key, existing.uploadId).catch(() => {});
 
   const folder = photo.keys.display.split("/").slice(-2, -1)[0]; // <photoId>-<token>

@@ -1,6 +1,10 @@
 import type { ObjectId } from "mongodb";
 import type { BrandFontId } from "../lib/brand-fonts";
-import { PLANS, type Plan, type PlanTier } from "./plans";
+import type { CustomPlanConfig } from "../lib/custom-plan";
+import { CUSTOM_PLAN } from "../lib/custom-plan";
+import { customPlan, PLANS, type Plan, type PlanTier } from "./plans";
+
+const CUSTOM_DEFAULT: CustomPlanConfig = CUSTOM_PLAN.min;
 
 export type EventAccessMode = "public" | "password";
 export type EventStatus = "draft" | "live" | "closed" | "expired";
@@ -20,10 +24,11 @@ export interface EventDoc {
   status: EventStatus;
   expiresAt: Date | null;
   /** Missing on events created before packages existed: treated as Free. */
-  plan?: { tier: PlanTier; upgradedAt: Date | null };
+  plan?: { tier: PlanTier; upgradedAt: Date | null; custom?: CustomPlanConfig };
   /** `counters.photos` = photos guests can see; `usage.photos` = all stored photos (counts toward the plan). */
   counters: { photos: number; guests: number };
-  usage?: { photos: number };
+  /** `bytes`: everything stored for the album (missing on older events until backfilled). */
+  usage?: { photos: number; bytes?: number };
   /** Set once the files of an expired album have been deleted. */
   purgedAt?: Date | null;
   /** Custom look of the guest page (Premium). Storage keys point to events/<id>/branding/*. */
@@ -146,7 +151,9 @@ export interface BrandingDoc {
 }
 
 export function planOf(event: Pick<EventDoc, "plan">): Plan {
-  return PLANS[event.plan?.tier ?? "free"];
+  const tier = event.plan?.tier ?? "free";
+  if (tier === "custom") return customPlan(event.plan?.custom ?? CUSTOM_DEFAULT);
+  return PLANS[tier];
 }
 
 export interface PaymentDoc {
@@ -155,6 +162,8 @@ export interface PaymentDoc {
   ownerId: ObjectId;
   fromTier: PlanTier;
   toTier: PlanTier;
+  /** What a Custom package was bought with (toTier "custom"). */
+  custom?: CustomPlanConfig;
   amountThb: number;
   provider: "stripe";
   stripeSessionId: string | null;
@@ -263,7 +272,7 @@ export const UPLOAD_LIMITS = {
     display: 8 * 1024 * 1024,
     thumb: 1024 * 1024,
     watermarked: 8 * 1024 * 1024,
-    video: 400 * 1024 * 1024, // hard cap; the plan's limit is usually lower
+    video: 5 * 1024 ** 3, // hard cap (single-request upload limit); each plan's limit is lower or equal
   } satisfies Record<PhotoVariant, number>,
   presignExpiresSeconds: 10 * 60,
 } as const;

@@ -66,28 +66,68 @@ function contentTypeOf(photo: Pick<PhotoDoc, "contentType" | "video">, variant: 
 
 type Uploader = PhotoDoc["uploader"];
 
-/**
- * Takes `count` photo slots from the event's plan allowance (all stored photos, guest and
- * official). Atomic, so parallel uploads cannot overshoot `maxPhotos`.
- */
-async function reservePhotoQuota(event: EventDoc, count: number): Promise<void> {
-  const { events, photos } = await collections();
-  if (event.usage === undefined) {
-    // Events created before usage tracking: backfill the counter once.
-    const used = await photos.countDocuments({ eventId: event._id, status: { $in: ["pending", "ready", "hidden"] } });
-    await events.updateOne({ _id: event._id, usage: { $exists: false } }, { $set: { usage: { photos: used } } });
-  }
-  const reserved = await events.findOneAndUpdate(
-    { _id: event._id, "usage.photos": { $lte: planOf(event).maxPhotos - count } },
-    { $inc: { "usage.photos": count } },
-  );
-  if (!reserved) throw new HttpError(403, "photo_limit_reached", "This album has reached its photo limit");
+/** Every byte stored for a photo: display, thumbnail, watermarked copy, clip and original. */
+export function storedBytes(photo: Pick<PhotoDoc, "bytes" | "original">): number {
+  const b = photo.bytes;
+  return b.display + b.thumb + (b.watermarked ?? 0) + (b.video ?? 0) + (photo.original?.bytes ?? 0);
 }
 
-/** Gives photo slots back (deleted photos, abandoned uploads). */
-export async function releasePhotoQuota(eventId: ObjectId, count: number): Promise<void> {
+/** What an upload request will store once its files arrive. */
+function requestedBytes(files: UploadRequestFile[]): number {
+  return files.reduce(
+    (sum, f) => sum + f.bytes.display + f.bytes.thumb + (f.bytes.watermarked ?? 0) + (f.video?.bytes ?? 0),
+    0,
+  );
+}
+
+/** Events created before usage tracking: count what they already store, once. */
+async function backfillUsage(event: EventDoc): Promise<void> {
+  if (event.usage?.bytes !== undefined) return;
+  const { events, photos } = await collections();
+  const live = { eventId: event._id, status: { $in: ["pending", "ready", "hidden"] as PhotoDoc["status"][] } };
+  const [count, stored] = await Promise.all([
+    event.usage === undefined ? photos.countDocuments(live) : Promise.resolve(event.usage.photos),
+    photos.find(live, { projection: { bytes: 1, original: 1 } }).toArray(),
+  ]);
+  const bytes = stored.reduce((sum, p) => sum + storedBytes(p), 0);
+  await events.updateOne(
+    { _id: event._id, "usage.bytes": { $exists: false } },
+    { $set: { "usage.photos": count, "usage.bytes": bytes } },
+  );
+}
+
+/**
+ * Takes `count` file slots and `bytes` of storage from the event's plan allowance (all
+ * stored files, guest and official). Atomic, so parallel uploads cannot overshoot either limit.
+ */
+export async function reserveQuota(event: EventDoc, count: number, bytes: number): Promise<void> {
+  const { events } = await collections();
+  await backfillUsage(event);
+  const plan = planOf(event);
+  const reserved = await events.findOneAndUpdate(
+    {
+      _id: event._id,
+      "usage.photos": { $lte: plan.maxPhotos - count },
+      ...(plan.maxStorageBytes !== null ? { "usage.bytes": { $lte: plan.maxStorageBytes - bytes } } : {}),
+    },
+    { $inc: { "usage.photos": count, "usage.bytes": bytes } },
+    { returnDocument: "before" },
+  );
+  if (reserved) return;
+  const current = await events.findOne({ _id: event._id }, { projection: { usage: 1 } });
+  if ((current?.usage?.photos ?? 0) + count > plan.maxPhotos) {
+    throw new HttpError(403, "photo_limit_reached", "This album has reached its photo limit");
+  }
+  throw new HttpError(403, "storage_full", "This album has used all of its storage");
+}
+
+/** Gives file slots and storage back (deleted photos, abandoned uploads). */
+export async function releaseQuota(eventId: ObjectId, count: number, bytes: number): Promise<void> {
   const { events } = await collections();
   await events.updateOne({ _id: eventId, "usage.photos": { $gte: count } }, { $inc: { "usage.photos": -count } });
+  if (bytes > 0) {
+    await events.updateOne({ _id: eventId, "usage.bytes": { $gte: bytes } }, { $inc: { "usage.bytes": -bytes } });
+  }
 }
 
 /** Plan rules on the requested files; runs before any quota is reserved. */
@@ -192,7 +232,8 @@ export async function createGuestUploads(
   assertFilesAllowed(event, files);
 
   const { guestSessions } = await collections();
-  await reservePhotoQuota(event, files.length);
+  const bytes = requestedBytes(files);
+  await reserveQuota(event, files.length, bytes);
 
   // Atomic quota reservation: only succeeds if the guest still has room for all files.
   const session = await guestSessions.findOneAndUpdate(
@@ -205,7 +246,7 @@ export async function createGuestUploads(
     { returnDocument: "after" },
   );
   if (!session) {
-    await releasePhotoQuota(event._id, files.length);
+    await releaseQuota(event._id, files.length, bytes);
     throw new HttpError(429, "quota_exceeded", `Each guest can upload up to ${event.settings.maxPhotosPerGuest} photos`);
   }
 
@@ -219,7 +260,7 @@ export async function createOfficialUploads(
   files: UploadRequestFile[],
 ): Promise<PresignedUpload[]> {
   assertFilesAllowed(event, files);
-  await reservePhotoQuota(event, files.length);
+  await reserveQuota(event, files.length, requestedBytes(files));
   return createPendingPhotos(event, "official", { type: "user", id: host.id, displayName: host.name }, files);
 }
 
@@ -229,7 +270,7 @@ async function discardPendingUpload(photo: PhotoDoc): Promise<void> {
   await deleteObjects(Object.values(photo.keys).filter((key): key is string => !!key));
   const removed = await photos.deleteOne({ _id: photo._id, status: "pending" });
   if (!removed.deletedCount) return;
-  await releasePhotoQuota(photo.eventId, 1);
+  await releaseQuota(photo.eventId, 1, storedBytes(photo));
   if (photo.uploader.type === "guest") {
     await guestSessions.updateOne({ _id: photo.uploader.id, uploadCount: { $gt: 0 } }, { $inc: { uploadCount: -1 } });
   }

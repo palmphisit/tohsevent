@@ -1,170 +1,149 @@
-import { ChevronRight, CreditCard, Images, MonitorPlay, Palette } from "lucide-react";
+import { Check, Download, Images, MonitorPlay, Palette, Printer, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { qrSvg } from "@/server/qr";
 import { toHostEvent } from "@/server/services/host-events";
-import { countOpenReports } from "@/server/services/moderation";
 import { CopyButton } from "../../_components/copy-button";
 import { EventForm } from "../../_components/event-form";
-import { StatusBadge } from "../../_components/status-badge";
 import { loadEventPageForMember } from "./load-event";
 import { MembersPanel } from "./members-panel";
 
 export default function HostEventPage({ params }: PageProps<"/dashboard/events/[id]">) {
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-8">
-      <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-900">
-        ← งานของฉัน
-      </Link>
-      <Suspense fallback={<div className="mt-4 h-96 animate-pulse rounded-2xl bg-slate-100" />}>
-        <EventDetails params={params} />
+    <main className="mx-auto w-full max-w-5xl px-4 pt-6 pb-12">
+      <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-slate-100" />}>
+        <EventOverview params={params} />
       </Suspense>
     </main>
   );
 }
 
-async function EventDetails({ params }: Pick<PageProps<"/dashboard/events/[id]">, "params">) {
+const n = (value: number) => value.toLocaleString("th-TH");
+
+async function EventOverview({ params }: Pick<PageProps<"/dashboard/events/[id]">, "params">) {
   const { id } = await params;
   const { event: doc, role } = await loadEventPageForMember(id);
   const event = toHostEvent(doc, role);
   const owner = role === "owner";
-  const [svg, openReports] = await Promise.all([qrSvg(event.guestUrl), countOpenReports(doc)]);
+  const svg = await qrSvg(event.guestUrl);
   const qrBase = `/api/v1/host/events/${event.id}/qr`;
+  const base = `/dashboard/events/${event.id}`;
+  // eslint-disable-next-line react-hooks/purity -- server component rendered per request
+  const daysLeft = event.expiresAt ? Math.ceil((new Date(event.expiresAt).getTime() - Date.now()) / 86_400_000) : null;
+  const filesPct = Math.min(100, Math.round((event.usage.photos / event.plan.maxPhotos) * 100));
+
+  const stats = [
+    { icon: Images, label: "รูปและวิดีโอที่แสดง", value: n(event.counters.photos), sub: `ใช้พื้นที่ ${filesPct}% ของแพ็กเกจ` },
+    { icon: Users, label: "แขกที่เข้าร่วม", value: n(event.counters.guests), sub: `จากสูงสุด ${n(event.plan.maxGuests)} คน` },
+    {
+      icon: Download,
+      label: "อัลบั้มเปิดอีก",
+      value: daysLeft === null ? "—" : daysLeft > 0 ? `${n(daysLeft)} วัน` : "ปิดแล้ว",
+      sub: event.expiresAt
+        ? new Date(event.expiresAt).toLocaleDateString("th-TH", { dateStyle: "medium", timeZone: "Asia/Bangkok" })
+        : "",
+    },
+  ];
+
+  const steps = [
+    { done: false, href: `${base}/poster`, icon: Printer, title: "พิมพ์โปสเตอร์ QR", text: "วางบนโต๊ะหรือหน้างานให้แขกสแกน" },
+    { done: !!doc.appearance || !!doc.branding, href: `${base}/branding`, icon: Palette, title: "ปรับแต่งหน้าแขก", text: "ธีม รูปปก และการจัดเรียงรูป" },
+    { done: !!doc.slideshow, href: `${base}/slideshow`, icon: MonitorPlay, title: "เตรียม Slideshow", text: "ให้รูปไหลขึ้นจอในงาน" },
+    { done: (doc.members?.length ?? 0) > 0, href: "#members", icon: UserPlus, title: "เชิญช่างภาพ", text: "ให้อัปโหลดรูป Official ได้" },
+  ];
 
   return (
-    <>
-      <div className="mt-2 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">{event.title}</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {new Date(event.date).toLocaleDateString("th-TH", { dateStyle: "long", timeZone: "UTC" })} ·{" "}
-            {event.counters.photos} รูป · {event.counters.guests} แขก
-          </p>
-        </div>
-        <StatusBadge status={event.status} />
+    <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-3">
+        {stats.map(({ icon: Icon, label, value, sub }) => (
+          <div key={label} className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+            <p className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Icon className="h-4 w-4 text-primary" /> {label}
+            </p>
+            <p className="mt-1.5 text-2xl font-semibold tracking-tight">{value}</p>
+            <p className="text-xs text-slate-500">{sub}</p>
+          </div>
+        ))}
       </div>
-      {!owner && (
-        <p className="mt-3 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-          คุณเป็นช่างภาพของงานนี้: อัปโหลดรูป Official และไฟล์ต้นฉบับได้ ส่วนการตั้งค่างานเป็นของเจ้าภาพ
-        </p>
+
+      {owner && event.counters.photos === 0 && (
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 sm:p-5">
+          <h2 className="font-semibold">เตรียมงานให้พร้อม</h2>
+          <p className="text-sm text-slate-500">ทำตามนี้ก่อนวันงาน แขกจะเริ่มแชร์รูปได้ทันทีที่สแกน QR</p>
+          <ol className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map(({ done, href, icon: Icon, title, text }) => (
+              <li key={title}>
+                <Link
+                  href={href}
+                  className="flex h-full items-start gap-3 rounded-xl p-3 ring-1 ring-slate-200 transition hover:bg-slate-50 hover:ring-blue-200"
+                >
+                  <span
+                    className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${done ? "bg-emerald-100 text-emerald-700" : "bg-primary-soft text-primary"}`}
+                  >
+                    {done ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">{title}</span>
+                    <span className="block text-xs text-slate-500">{text}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        {owner && (
-          <>
-            <ActionCard
-              href={`/dashboard/events/${event.id}/plan`}
-              icon={<CreditCard className="h-5 w-5" />}
-              title={`แพ็กเกจ ${event.plan.name}`}
-              text={`แขก ${event.usage.guests}/${event.plan.maxGuests} · รูป ${event.usage.photos}/${event.plan.maxPhotos}${
-                event.expiresAt
-                  ? ` · เปิดถึง ${new Date(event.expiresAt).toLocaleDateString("th-TH", { dateStyle: "medium", timeZone: "Asia/Bangkok" })}`
-                  : ""
-              }`}
-              badge={event.plan.tier === "premium" ? undefined : "อัปเกรด"}
-            />
-            <ActionCard
-              href={`/dashboard/events/${event.id}/branding`}
-              icon={<Palette className="h-5 w-5" />}
-              title="ปรับแต่งหน้างาน"
-              text="ธีม ส่วนหัว การจัดเรียงรูป · สีและโลโก้ (Premium)"
-            />
-            <ActionCard
-              href={`/dashboard/events/${event.id}/slideshow`}
-              icon={<MonitorPlay className="h-5 w-5" />}
-              title="Slideshow บนจอ"
-              text="รูปไหลขึ้นจอในงานแบบเรียลไทม์ พร้อม QR ให้แขกสแกน"
-            />
-          </>
-        )}
-        <ActionCard
-          href={`/dashboard/events/${event.id}/photos`}
-          icon={<Images className="h-5 w-5" />}
-          title={owner ? "จัดการรูปภาพ" : "อัปโหลดรูป Official"}
-          text={owner ? "ซ่อน/ลบรูป ดูรูปที่ถูกรายงาน อัปโหลดรูป Official" : "อัปโหลดรูปและไฟล์ต้นฉบับ ดาวน์โหลดอัลบั้ม"}
-          alert={owner && openReports > 0 ? `${openReports} รายการรอตรวจ` : undefined}
-        />
-      </div>
-
-      <div className="mt-6 grid gap-6 md:grid-cols-[280px_1fr]">
-        <section className="rounded-2xl bg-white ring-1 ring-slate-200 p-4">
-          <h2 className="text-sm font-medium">QR Code สำหรับแขก</h2>
+      <div className="grid gap-6 md:grid-cols-[300px_1fr]">
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 md:self-start">
+          <h2 className="font-semibold">QR Code สำหรับแขก</h2>
+          <p className="text-xs text-slate-500">แขกสแกนแล้วอัปโหลดและเซฟรูปได้ทันที ไม่ต้องโหลดแอป</p>
           {/* SVG generated server-side by the qrcode library from our own URL */}
-          <div className="mx-auto mt-3 w-full max-w-[240px]" dangerouslySetInnerHTML={{ __html: svg }} />
+          <div className="mx-auto mt-3 w-full max-w-[230px]" dangerouslySetInnerHTML={{ __html: svg }} />
           <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2">
             <span className="min-w-0 flex-1 truncate text-xs text-slate-600">{event.guestUrl}</span>
             <CopyButton text={event.guestUrl} />
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            <a href={`${qrBase}?format=png&size=1024`} className="rounded-lg border border-slate-300 px-3 py-2 text-center">
-              ดาวน์โหลด PNG
+          <Link
+            href={`${base}/poster`}
+            className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white hover:bg-primary-hover"
+          >
+            <Printer className="h-4 w-4" /> พิมพ์โปสเตอร์ QR
+          </Link>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+            <a href={`${qrBase}?format=png&size=1024`} className="rounded-xl border border-slate-300 px-3 py-2 text-center hover:bg-slate-50">
+              PNG
             </a>
-            <a href={`${qrBase}?format=svg`} className="rounded-lg border border-slate-300 px-3 py-2 text-center">
-              ดาวน์โหลด SVG
-            </a>
-            <Link
-              href={`/dashboard/events/${event.id}/poster`}
-              className="col-span-2 rounded-lg bg-primary hover:bg-primary-hover px-3 py-2 text-center font-medium text-white"
-            >
-              พิมพ์โปสเตอร์ QR
-            </Link>
-            <a
-              href={event.guestUrl}
-              target="_blank"
-              rel="noopener"
-              className="col-span-2 px-3 py-1 text-center text-slate-500 underline"
-            >
-              เปิดหน้างานแบบที่แขกเห็น
+            <a href={`${qrBase}?format=svg`} className="rounded-xl border border-slate-300 px-3 py-2 text-center hover:bg-slate-50">
+              SVG
             </a>
           </div>
         </section>
 
-        {owner && (
+        {owner ? (
           <div className="space-y-6">
-            <section className="rounded-2xl bg-white ring-1 ring-slate-200 p-4 sm:p-6">
-              <h2 className="mb-4 text-sm font-medium">ตั้งค่างาน</h2>
+            <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 sm:p-6">
+              <h2 className="mb-4 font-semibold">ตั้งค่างาน</h2>
               <EventForm event={event} />
             </section>
-            <MembersPanel eventId={event.id} />
+            <div id="members" className="scroll-mt-24">
+              <MembersPanel eventId={event.id} />
+            </div>
           </div>
+        ) : (
+          <section className="rounded-2xl bg-white p-6 ring-1 ring-slate-200 md:self-start">
+            <h2 className="font-semibold">คุณเป็นช่างภาพของงานนี้</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              อัปโหลดรูป Official และไฟล์ต้นฉบับ ดาวน์โหลดอัลบั้ม หรือส่งไปที่ Google Drive ได้ในแท็บรูปภาพ
+            </p>
+            <Link
+              href={`${base}/photos`}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover"
+            >
+              <Images className="h-4 w-4" /> ไปที่รูปภาพ
+            </Link>
+          </section>
         )}
       </div>
-    </>
-  );
-}
-
-function ActionCard({
-  href,
-  icon,
-  title,
-  text,
-  badge,
-  alert,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  text: string;
-  badge?: string;
-  alert?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex min-w-0 items-center gap-4 rounded-2xl bg-white px-4 py-4 ring-1 ring-slate-200 transition hover:shadow-sm hover:ring-blue-200"
-    >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-medium">{title}</span>
-        <span className="block truncate text-sm text-slate-500">{text}</span>
-      </span>
-      {alert ? (
-        <span className="shrink-0 rounded-full bg-red-600 px-2.5 py-1 text-xs font-medium text-white">{alert}</span>
-      ) : badge ? (
-        <span className="shrink-0 rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-white">{badge}</span>
-      ) : (
-        <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-      )}
-    </Link>
+    </div>
   );
 }

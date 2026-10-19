@@ -10,7 +10,7 @@ import { BrandingEditor } from "./branding-editor";
 
 export default function EventBrandingPage({ params }: PageProps<"/dashboard/events/[id]/branding">) {
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8">
+    <main className="mx-auto w-full max-w-5xl px-4 pt-6 pb-12">
       <Suspense fallback={<div className="h-96 animate-pulse rounded-2xl bg-slate-100" />}>
         <BrandingLoader params={params} />
       </Suspense>
@@ -25,10 +25,7 @@ async function BrandingLoader({ params }: Pick<PageProps<"/dashboard/events/[id]
 
   return (
     <>
-      <Link href={`/dashboard/events/${id}`} className="text-sm text-slate-500 hover:text-slate-900">
-        ← {event.title}
-      </Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">ปรับแต่งหน้างาน</h1>
+      <h1 className="text-xl font-semibold tracking-tight">ปรับแต่งหน้างาน</h1>
       <AppearanceEditor eventId={id} event={toPublicEvent(event)} initial={appearanceOf(event)} />
       <h2 className="mt-12 text-lg font-semibold tracking-tight">
         แบรนด์ของงาน <span className="ml-1 rounded-full bg-primary px-2 py-0.5 align-middle text-xs font-medium text-white">Premium</span>

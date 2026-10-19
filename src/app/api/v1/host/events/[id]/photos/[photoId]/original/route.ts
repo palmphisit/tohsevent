@@ -14,7 +14,7 @@ type Ctx = RouteContext<"/api/v1/host/events/[id]/photos/[photoId]/original">;
 
 const startSchema = z.object({
   contentType: z.enum(ORIGINAL_CONTENT_TYPES),
-  bytes: z.number().int().positive().max(ORIGINAL_LIMITS.maxBytes),
+  bytes: z.number().int().positive().max(ORIGINAL_LIMITS.hardMaxBytes),
   filename: z.string().trim().min(1).max(200),
 });
 

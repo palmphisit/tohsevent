@@ -1,70 +1,129 @@
 "use client";
 
+import { Check, Download, Link2, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { deleteMyPhoto, reportPhoto, type PublicPhoto, type ReportReason } from "@/lib/api-client";
 import { showError } from "@/lib/error-popup";
+import {
+  facebookShareUrl,
+  GestureRequired,
+  lineShareUrl,
+  mediaFile,
+  prefetchMedia,
+  saveToDevice,
+  shareMedia,
+  type ShareInfo,
+} from "@/lib/save-share";
 
 const buttonClass = "rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium hover:bg-white/20 disabled:opacity-50";
 
-/**
- * Saves the photo to the device. On phones the share sheet offers "Save Image" (to the
- * Photos app on iOS); elsewhere it downloads. The blob is fetched as soon as the photo is
- * shown, because iOS only allows `navigator.share` right after a tap.
- */
-export function SavePhotoButton({ photo }: { photo: PublicPhoto }) {
-  if (photo.videoUrl) {
-    // Clips can be hundreds of MB: no prefetch; the browser's own player offers save/share.
-    return (
-      <a href={photo.videoUrl} target="_blank" rel="noopener" download className={buttonClass}>
-        เซฟวิดีโอ
-      </a>
-    );
-  }
-  return <SaveImageButton photo={photo} />;
-}
+type Phase = "idle" | "working" | "tap-again" | "done";
 
-function SaveImageButton({ photo }: { photo: PublicPhoto }) {
-  const [loaded, setLoaded] = useState<{ id: string; blob: Blob } | null>(null);
-  const blob = loaded?.id === photo.id ? loaded.blob : null;
-
+/** A media action that may need the file first; if the browser drops the tap meanwhile, asks for one more. */
+function useMediaAction(photo: PublicPhoto, run: (file: File) => Promise<unknown>) {
+  const [phase, setPhase] = useState<Phase>("idle");
   useEffect(() => {
-    let cancelled = false;
-    fetch(photo.displayUrl)
-      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then((b) => !cancelled && setLoaded({ id: photo.id, blob: b }))
-      .catch(() => {}); // fall back to opening the image on tap
-    return () => {
-      cancelled = true;
-    };
-  }, [photo.id, photo.displayUrl]);
+    // Photos are small: fetch now so the share sheet opens straight from the tap.
+    if (photo.kind !== "video") prefetchMedia(photo);
+  }, [photo]);
 
-  async function save() {
-    if (!blob) {
-      window.open(photo.displayUrl, "_blank", "noopener");
-      return;
-    }
-    const file = new File([blob], `tohsevent-${photo.id}.jpg`, { type: blob.type || "image/jpeg" });
-    const isTouch = window.matchMedia("(pointer: coarse)").matches;
-    if (isTouch && navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file] });
-        return;
-      } catch (error) {
-        if ((error as Error).name === "AbortError") return;
+  async function trigger() {
+    setPhase("working");
+    try {
+      await run(await mediaFile(photo));
+      setPhase("done");
+      setTimeout(() => setPhase("idle"), 2000);
+    } catch (error) {
+      if (error instanceof GestureRequired) setPhase("tap-again");
+      else {
+        setPhase("idle");
+        showError("ทำรายการไม่สำเร็จ ลองอีกครั้ง");
       }
     }
-    const url = URL.createObjectURL(file);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
+  return { phase, trigger };
+}
 
+/**
+ * Saves the photo or video to the phone: iPhone/iPad open the share sheet ("Save Image" /
+ * "Save Video" puts it in Photos); Android and computers download it to the device.
+ */
+export function SaveMediaButton({ photo }: { photo: PublicPhoto }) {
+  const { phase, trigger } = useMediaAction(photo, (file) => saveToDevice([file]));
+  const what = photo.kind === "video" ? "วิดีโอ" : "รูป";
   return (
-    <button type="button" onClick={save} className={buttonClass}>
-      เซฟรูป
+    <button type="button" onClick={trigger} disabled={phase === "working"} className={`${buttonClass} inline-flex items-center gap-2`}>
+      {phase === "done" ? <Check className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+      {phase === "working"
+        ? `กำลังเตรียม${what}…`
+        : phase === "tap-again"
+          ? `แตะเพื่อบันทึก${what}`
+          : phase === "done"
+            ? "บันทึกแล้ว"
+            : `บันทึก${what}`}
     </button>
+  );
+}
+
+/** Shares the file itself (LINE, Messenger, IG…) with a link to the album; falls back to share links. */
+export function ShareMediaButton({ photo, info }: { photo: PublicPhoto; info: ShareInfo }) {
+  const [fallback, setFallback] = useState(false);
+  const { phase, trigger } = useMediaAction(photo, async (file) => {
+    if ((await shareMedia([file], info)) === "unsupported") setFallback(true);
+  });
+  return (
+    <>
+      <button type="button" onClick={trigger} disabled={phase === "working"} className={`${buttonClass} inline-flex items-center gap-2`}>
+        <Share2 className="h-4 w-4" />
+        {phase === "working" ? "กำลังเตรียม…" : phase === "tap-again" ? "แตะเพื่อแชร์" : "แชร์"}
+      </button>
+      {fallback && <ShareSheet info={info} onClose={() => setFallback(false)} />}
+    </>
+  );
+}
+
+/** For browsers without a share sheet: LINE, Facebook or copy the album link. */
+export function ShareSheet({ info, onClose }: { info: ShareInfo; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const item = "flex flex-col items-center gap-1.5 rounded-2xl px-3 py-3 text-xs font-medium hover:bg-surface";
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-3xl bg-card p-5 text-ink shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="แชร์"
+      >
+        <p className="font-semibold">แชร์อัลบั้มนี้</p>
+        <p className="mt-0.5 text-xs text-muted">ส่งลิงก์ให้เพื่อนเข้ามาดูและเซฟรูปในงาน</p>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <a href={lineShareUrl(info)} target="_blank" rel="noopener" className={item}>
+            <span className="grid h-11 w-11 place-items-center rounded-full bg-[#06C755] text-sm font-bold text-white">LINE</span>
+            LINE
+          </a>
+          <a href={facebookShareUrl(info)} target="_blank" rel="noopener" className={item}>
+            <span className="grid h-11 w-11 place-items-center rounded-full bg-[#1877F2] text-lg font-bold text-white">f</span>
+            Facebook
+          </a>
+          <button
+            type="button"
+            className={item}
+            onClick={async () => {
+              await navigator.clipboard.writeText(info.url);
+              setCopied(true);
+            }}
+          >
+            <span className="grid h-11 w-11 place-items-center rounded-full bg-surface text-ink">
+              {copied ? <Check className="h-5 w-5" /> : <Link2 className="h-5 w-5" />}
+            </span>
+            {copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์"}
+          </button>
+        </div>
+        <button type="button" onClick={onClose} className="mt-4 w-full rounded-xl bg-surface px-4 py-2.5 text-sm font-medium">
+          ปิด
+        </button>
+      </div>
+    </div>
   );
 }
 
