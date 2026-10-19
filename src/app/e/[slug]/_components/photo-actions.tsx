@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { deleteMyPhoto, reportPhoto, type PublicPhoto, type ReportReason } from "@/lib/api-client";
+import { showError } from "@/lib/error-popup";
 
 const buttonClass = "rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium hover:bg-white/20 disabled:opacity-50";
 
@@ -86,7 +87,7 @@ export function DeleteMyPhotoButton({
       await deleteMyPhoto(slug, photo.id);
       onDeleted(photo.id);
     } catch {
-      window.alert("ลบไม่สำเร็จ ลองอีกครั้ง");
+      showError("ลบไม่สำเร็จ ลองอีกครั้ง");
     } finally {
       setPending(false);
     }
@@ -133,7 +134,8 @@ export function ReportPhotoButton({
       setOpen(false);
       setState("sent");
     } catch {
-      setState("error");
+      setState("idle");
+      showError("ส่งรายงานไม่สำเร็จ ลองอีกครั้ง");
     }
   }
 
@@ -170,7 +172,6 @@ export function ReportPhotoButton({
               placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
             />
-            {state === "error" && <p className="text-sm text-red-600">ส่งไม่สำเร็จ ลองอีกครั้ง</p>}
             <div className="flex gap-2">
               <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl border border-slate-300 py-3">
                 ยกเลิก

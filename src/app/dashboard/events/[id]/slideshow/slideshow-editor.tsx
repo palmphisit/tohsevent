@@ -5,6 +5,7 @@ import { useState } from "react";
 import { SlideshowView } from "@/components/slideshow/slideshow-view";
 import { ApiError, saveSlideshow, type PublicEvent, type SlideshowSettings } from "@/lib/api-client";
 import { CopyButton } from "../../../_components/copy-button";
+import { showError } from "@/lib/error-popup";
 
 const inputClass =
   "w-full rounded-xl border border-slate-300 px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/15";
@@ -67,7 +68,6 @@ export function SlideshowEditor({
 }) {
   const [settings, setSettings] = useState(initial);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<string | null>(null);
   const dirty = JSON.stringify(settings) !== JSON.stringify(initial) && state !== "saved";
 
   function set<K extends keyof SlideshowSettings>(key: K, value: SlideshowSettings[K]) {
@@ -77,14 +77,13 @@ export function SlideshowEditor({
 
   async function save() {
     setState("saving");
-    setError(null);
     try {
       const { slideshow } = await saveSlideshow(eventId, settings);
       setSettings(slideshow);
       setState("saved");
     } catch (err) {
       setState("idle");
-      setError(err instanceof ApiError && err.code === "invalid_body" ? "ข้อมูลไม่ถูกต้อง ตรวจสอบความยาวข้อความ" : "บันทึกไม่สำเร็จ ลองอีกครั้ง");
+      showError(err instanceof ApiError && err.code === "invalid_body" ? "ข้อมูลไม่ถูกต้อง ตรวจสอบความยาวข้อความ" : "บันทึกไม่สำเร็จ ลองอีกครั้ง");
     }
   }
 
@@ -244,7 +243,6 @@ export function SlideshowEditor({
       </div>
 
       <div className="flex items-center justify-end gap-3">
-        {error && <p className="text-sm text-red-600">{error}</p>}
         {state === "saved" && <p className="text-sm text-emerald-600">บันทึกแล้ว จอในงานจะเปลี่ยนตามภายใน 10 วินาที</p>}
         <button
           type="button"

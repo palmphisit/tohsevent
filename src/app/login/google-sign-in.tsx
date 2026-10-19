@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { showError } from "@/lib/error-popup";
 import { safeNext } from "./safe-next";
 
 /** Google's "G" mark (brand colors as required by Google's sign-in branding guidelines). */
@@ -17,22 +18,21 @@ function GoogleMark() {
   );
 }
 
-const ERRORS: Record<string, string> = {
-  account_not_linked: "อีเมลนี้สมัครด้วยรหัสผ่านไว้แล้ว เข้าสู่ระบบด้วยรหัสผ่านก่อน แล้วเชื่อม Google ได้ในหน้าจัดการงาน",
-  access_denied: "ยกเลิกการเข้าสู่ระบบด้วย Google แล้ว",
-};
 
 export function GoogleSignIn() {
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
-  const errorCode = params.get("error");
   const [pending, setPending] = useState(false);
 
   async function signIn() {
     setPending(true);
     const back = `/login?next=${encodeURIComponent(next)}`;
+    // Failures come back to the login page as ?error=<code>; the root layout shows them as a popup.
     const { error } = await authClient.signIn.social({ provider: "google", callbackURL: next, errorCallbackURL: back });
-    if (error) setPending(false);
+    if (error) {
+      setPending(false);
+      showError("เชื่อมต่อกับ Google ไม่สำเร็จ ลองอีกครั้ง");
+    }
   }
 
   return (
@@ -46,9 +46,6 @@ export function GoogleSignIn() {
         <GoogleMark />
         {pending ? "กำลังไปที่ Google…" : "ดำเนินการต่อด้วย Google"}
       </button>
-      {errorCode && (
-        <p className="mt-2 text-sm text-red-600">{ERRORS[errorCode] ?? "เข้าสู่ระบบด้วย Google ไม่สำเร็จ ลองอีกครั้ง"}</p>
-      )}
       <div className="mt-5 flex items-center gap-3 text-xs text-slate-400">
         <span className="h-px flex-1 bg-slate-200" />
         หรือใช้อีเมล

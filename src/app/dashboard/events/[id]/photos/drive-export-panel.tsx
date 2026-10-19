@@ -11,6 +11,7 @@ import {
   type DriveExportView,
 } from "@/lib/api-client";
 import { authClient } from "@/lib/auth-client";
+import { showError } from "@/lib/error-popup";
 import { DRIVE_SCOPE } from "@/lib/google";
 
 type Source = DriveExportView["sources"][number];
@@ -29,7 +30,7 @@ export function DriveExportPanel({ eventId, counts }: { eventId: string; counts:
   const [google, setGoogle] = useState<{ enabled: boolean; connected: boolean } | null>(null);
   const [job, setJob] = useState<DriveExportView | null>(null);
   const [sources, setSources] = useState<Source[]>(["official", "guest"]);
-  const [error, setError] = useState<string | null>(null);
+  const [stalled, setStalled] = useState(false);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
 
@@ -59,7 +60,8 @@ export function DriveExportPanel({ eventId, counts }: { eventId: string; counts:
           setJob(current);
         }
       } catch {
-        setError("การเชื่อมต่อขาดช่วง จะโอนต่อเมื่อกดปุ่มโอนต่อ");
+        setStalled(true);
+        showError("การเชื่อมต่อขาดช่วง กดปุ่ม “โอนต่อ” เพื่อส่งไฟล์ที่เหลือ", "การโอนไฟล์หยุดชั่วคราว");
       } finally {
         running.current = false;
       }
@@ -71,23 +73,27 @@ export function DriveExportPanel({ eventId, counts }: { eventId: string; counts:
     if (job?.status === "running" && !running.current) void pump(job);
   }, [job, pump]);
 
-  const connect = () =>
-    authClient.linkSocial({
+  // Errors (e.g. that Google account belongs to another user) return here as ?error=<code>
+  // and show as a popup from the root layout.
+  const connect = async () => {
+    const { error } = await authClient.linkSocial({
       provider: "google",
       scopes: [DRIVE_SCOPE],
-      callbackURL: `${window.location.pathname}?drive=connected`,
+      callbackURL: window.location.pathname,
+      errorCallbackURL: window.location.pathname,
     });
+    if (error) showError("เชื่อมต่อกับ Google ไม่สำเร็จ ลองอีกครั้ง");
+  };
 
   async function start() {
     setBusy(true);
-    setError(null);
     try {
       setJob((await startDriveExport(eventId, sources.filter((s) => counts[s] > 0))).export);
     } catch (err) {
       if (err instanceof ApiError && err.code === "drive_not_connected") {
         setGoogle((g) => g && { ...g, connected: false });
-        setError("ต้องเชื่อม Google Drive ใหม่อีกครั้ง");
-      } else setError("เริ่มโอนไม่สำเร็จ ลองอีกครั้ง");
+        showError("สิทธิ์เข้าถึง Google Drive หมดอายุหรือถูกยกเลิก กด “เชื่อม Google Drive” อีกครั้ง", "ต้องเชื่อม Google Drive ใหม่");
+      } else showError("เริ่มโอนไม่สำเร็จ ลองอีกครั้ง");
     } finally {
       setBusy(false);
     }
@@ -160,8 +166,15 @@ export function DriveExportPanel({ eventId, counts }: { eventId: string; counts:
                 เชื่อม Google Drive อีกครั้ง
               </button>
             )}
-            {job!.status === "running" && error && (
-              <button type="button" onClick={() => void pump(job!)} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white">
+            {job!.status === "running" && stalled && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStalled(false);
+                  void pump(job!);
+                }}
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white"
+              >
                 โอนต่อ
               </button>
             )}
@@ -211,7 +224,6 @@ export function DriveExportPanel({ eventId, counts }: { eventId: string; counts:
           </button>
         </div>
       )}
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </section>
   );
 }

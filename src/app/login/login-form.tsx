@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { safeNext } from "./safe-next";
+import { showError } from "@/lib/error-popup";
 
 type Mode = "sign-in" | "sign-up";
 
@@ -18,13 +19,11 @@ export function LoginForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setPending(true);
-    setError(null);
     const result =
       mode === "sign-in"
         ? await authClient.signIn.email({ email, password })
@@ -33,7 +32,7 @@ export function LoginForm() {
 
     if (result.error) {
       const code = result.error.code;
-      setError(
+      showError(
         code === "INVALID_EMAIL_OR_PASSWORD"
           ? "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
           : code === "USER_ALREADY_EXISTS" || code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"
@@ -59,7 +58,6 @@ export function LoginForm() {
             aria-selected={mode === m}
             onClick={() => {
               setMode(m);
-              setError(null);
             }}
             className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${mode === m ? "bg-white shadow-sm" : "text-slate-500"}`}
           >
@@ -99,7 +97,6 @@ export function LoginForm() {
           placeholder="รหัสผ่าน (อย่างน้อย 8 ตัวอักษร)"
           className={inputClass}
         />
-        {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           disabled={pending}
           className="w-full rounded-xl bg-primary hover:bg-primary-hover px-4 py-3 font-medium text-white disabled:opacity-50"

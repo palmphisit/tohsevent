@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiError, createHostEvent, updateHostEvent, type HostEvent } from "@/lib/api-client";
+import { showError } from "@/lib/error-popup";
 
 const inputClass =
   "w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:bg-slate-50";
@@ -29,7 +30,6 @@ export function EventForm({ event }: { event?: HostEvent }) {
   const [password, setPassword] = useState("");
   const [guestUpload, setGuestUpload] = useState(event?.guestUpload ?? true);
   const [status, setStatus] = useState<"live" | "closed">(event?.status === "closed" ? "closed" : "live");
-  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -38,7 +38,6 @@ export function EventForm({ event }: { event?: HostEvent }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setPending(true);
-    setError(null);
     setSaved(false);
     try {
       if (editing) {
@@ -64,7 +63,7 @@ export function EventForm({ event }: { event?: HostEvent }) {
         router.push(`/dashboard/events/${created.id}`);
       }
     } catch (err) {
-      setError((err instanceof ApiError && ERRORS[err.code]) || "บันทึกไม่สำเร็จ ลองอีกครั้ง");
+      showError((err instanceof ApiError && ERRORS[err.code]) || "บันทึกไม่สำเร็จ ลองอีกครั้ง");
     } finally {
       setPending(false);
     }
@@ -162,8 +161,6 @@ export function EventForm({ event }: { event?: HostEvent }) {
           />
         </>
       )}
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
       {saved && <p className="text-sm text-emerald-700">บันทึกแล้ว</p>}
 
       <button

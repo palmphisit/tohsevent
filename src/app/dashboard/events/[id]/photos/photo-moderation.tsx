@@ -16,6 +16,7 @@ import {
   type HostPhotoView,
   type PublicPhoto,
 } from "@/lib/api-client";
+import { showError } from "@/lib/error-popup";
 
 const REPORT_LABELS: Record<HostPhoto["reports"][number]["reason"], string> = {
   remove_me: "คนในรูปขอให้ลบ",
@@ -163,7 +164,7 @@ function ModerationGrid({
       }
       if ((photo.openReports > 0 && action !== "show") || photo.autoFlagged) onReportsResolved(1);
     } catch {
-      window.alert("ทำรายการไม่สำเร็จ ลองอีกครั้ง");
+      showError("ทำรายการไม่สำเร็จ ลองอีกครั้ง");
     } finally {
       setBusy(null);
     }

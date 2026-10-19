@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { startUpgradeCheckout } from "@/lib/api-client";
+import { showError } from "@/lib/error-popup";
 
 export function UpgradeButton({
   eventId,
@@ -17,15 +18,13 @@ export function UpgradeButton({
   disabled: boolean;
 }) {
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState(false);
 
   async function upgrade() {
     setPending(true);
-    setError(false);
     try {
       window.location.assign(await startUpgradeCheckout(eventId, tier));
     } catch {
-      setError(true);
+      showError("เริ่มการชำระเงินไม่สำเร็จ ลองอีกครั้ง");
       setPending(false);
     }
   }
@@ -42,7 +41,6 @@ export function UpgradeButton({
           ? "กำลังไปหน้าชำระเงิน…"
           : `อัปเกรด ${priceThb.toLocaleString("th-TH")} ฿${isDifference ? " (จ่ายส่วนต่าง)" : ""}`}
       </button>
-      {error && <p className="mt-2 text-xs text-red-600">เริ่มการชำระเงินไม่สำเร็จ ลองอีกครั้ง</p>}
     </>
   );
 }

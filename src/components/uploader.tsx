@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, putToStorage, type PublicPhoto } from "@/lib/api-client";
 import { prepareImage, type PreparedImage } from "@/lib/image";
 import { listPending, removePending, savePending, setPendingPhotoId } from "@/lib/upload-store";
+import { showError } from "@/lib/error-popup";
 import { isVideoFile, prepareVideo, VideoRejected, type VideoLimits } from "@/lib/video";
 import type { PresignedUpload } from "@/server/services/photos";
 
@@ -201,7 +202,11 @@ export function Uploader({
     } catch (error) {
       console.error("upload failed", error);
       update(id, { status: "error", error: errorMessage(error) });
-      if (isPermanent(error)) void removePending(id);
+      if (isPermanent(error)) {
+        void removePending(id);
+        // Retrying will not help (quota, plan limits): say why once, as a popup.
+        showError(errorMessage(error), "อัปโหลดไม่สำเร็จ");
+      }
     }
   }
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { notifyGuests } from "@/lib/api-client";
+import { showError } from "@/lib/error-popup";
 
 export function NotifyGuestsButton({ eventId, pending }: { eventId: string; pending: number }) {
   const [remaining, setRemaining] = useState(pending);
@@ -17,7 +18,8 @@ export function NotifyGuestsButton({ eventId, pending }: { eventId: string; pend
       setRemaining(0);
       setState("idle");
     } catch {
-      setState("error");
+      setState("idle");
+      showError("ส่งอีเมลแจ้งแขกไม่สำเร็จ ลองอีกครั้ง");
     }
   }
 
@@ -40,7 +42,6 @@ export function NotifyGuestsButton({ eventId, pending }: { eventId: string; pend
           {state === "sending" ? "กำลังส่ง…" : "แจ้งแขกทางอีเมล"}
         </button>
       )}
-      {state === "error" && <span className="text-red-600">ส่งไม่สำเร็จ ลองอีกครั้ง</span>}
     </div>
   );
 }

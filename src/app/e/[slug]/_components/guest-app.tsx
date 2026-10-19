@@ -17,6 +17,7 @@ import {
   type PublicPhoto,
 } from "@/lib/api-client";
 import { Gallery } from "./gallery";
+import { showError } from "@/lib/error-popup";
 
 type GuestAppProps = { event: PublicEvent; initialSession: GuestSession | null };
 
@@ -192,7 +193,8 @@ function NotifyMe({
       onChange(notifyEmail);
       setState("idle");
     } catch {
-      setState("error");
+      setState("idle");
+      showError("บันทึกอีเมลไม่สำเร็จ ลองอีกครั้ง");
     }
   }
 
@@ -203,7 +205,8 @@ function NotifyMe({
       onChange(null);
       setState("idle");
     } catch {
-      setState("error");
+      setState("idle");
+      showError("บันทึกอีเมลไม่สำเร็จ ลองอีกครั้ง");
     }
   }
 
@@ -241,7 +244,6 @@ function NotifyMe({
           </p>
         </form>
       )}
-      {state === "error" && <p className="mt-2 text-xs text-red-600">ทำรายการไม่สำเร็จ ลองอีกครั้ง</p>}
     </section>
   );
 }
@@ -347,18 +349,16 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [accepted, setAccepted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setPending(true);
-    setError(null);
     try {
       const { session } = await joinEvent(event.slug, { password, displayName: displayName || undefined, consent: true });
       onJoined(session);
     } catch (err) {
-      setError(
+      showError(
         err instanceof ApiError && err.code === "invalid_password"
           ? "รหัสผ่านไม่ถูกต้อง"
           : err instanceof ApiError && err.code === "event_full"
@@ -407,7 +407,6 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
             และเข้าใจว่ารูปที่อัปโหลดจะแสดงให้ผู้ร่วมงานนี้เห็น
           </span>
         </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           disabled={pending || !accepted}
           className="w-full rounded-xl bg-brand px-4 py-3 font-medium text-brand-contrast disabled:opacity-50"

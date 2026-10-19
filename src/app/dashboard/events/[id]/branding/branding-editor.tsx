@@ -11,6 +11,7 @@ import {
 } from "@/lib/api-client";
 import { BRAND_FONT_IDS, BRAND_FONT_LABELS, contrastText, type BrandFontId } from "@/lib/brand-fonts";
 import { resizeImage } from "@/lib/image";
+import { showError } from "@/lib/error-popup";
 
 const PRESET_COLORS = ["#2563eb", "#18181b", "#be123c", "#c2410c", "#a16207", "#15803d", "#0f766e", "#1d4ed8", "#7e22ce"];
 const MAX_SPONSORS = 12;
@@ -48,7 +49,6 @@ export function BrandingEditor({
   const [welcomeMessage, setWelcomeMessage] = useState(initial.welcomeMessage);
   const [sponsors, setSponsors] = useState<Sponsor[]>(initial.sponsors);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<string | null>(null);
 
   const validColor = /^#[0-9a-fA-F]{6}$/.test(primaryColor);
   const upload = (kind: keyof typeof ASSET_SPECS) => async (file: File) =>
@@ -60,7 +60,6 @@ export function BrandingEditor({
 
   async function save() {
     setState("saving");
-    setError(null);
     try {
       const { branding } = await saveBranding(eventId, {
         primaryColor,
@@ -78,7 +77,7 @@ export function BrandingEditor({
       setSponsors(branding.sponsors);
       setState("saved");
     } catch (err) {
-      setError((err instanceof ApiError && ERRORS[err.code]) || "บันทึกไม่สำเร็จ ลองอีกครั้ง");
+      showError((err instanceof ApiError && ERRORS[err.code]) || "บันทึกไม่สำเร็จ ลองอีกครั้ง");
       setState("idle");
     }
   }
@@ -203,7 +202,6 @@ export function BrandingEditor({
           </button>
           {state === "saved" && <span className="text-sm text-emerald-700">บันทึกแล้ว แขกจะเห็นหน้าใหม่ทันที</span>}
           {incompleteSponsor && <span className="text-sm text-slate-500">ผู้สนับสนุนต้องมีทั้งชื่อและรูป</span>}
-          {error && <span className="text-sm text-red-600">{error}</span>}
         </div>
       </div>
 
