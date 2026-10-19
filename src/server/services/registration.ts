@@ -4,6 +4,7 @@ import { collections } from "../db";
 import { eventKey } from "../event-keys";
 import { HttpError } from "../http";
 import { planOf, type EventDoc, type RegistrationDoc, type RegistrationSettingsDoc } from "../models";
+import type { Locale } from "../../lib/i18n";
 import { guestEventUrl } from "./host-events";
 
 // Sign-up before the event (online), sign-up at the door (on-site, self-service or by staff),
@@ -113,6 +114,7 @@ export interface RegisterInput {
   organization?: string | null;
   partySize?: number;
   answer?: string | null;
+  locale?: Locale;
 }
 
 /**
@@ -158,6 +160,7 @@ export async function register(
       checkedInAt: options.source === "onsite" ? now : null,
       checkedInBy: options.source === "onsite" ? (options.checkedInBy ?? "self") : null,
       consentAt: now,
+      ...(input.locale ? { locale: input.locale } : {}),
       createdAt: now,
     };
     try {
@@ -177,6 +180,13 @@ export async function register(
 export async function findByCode(event: EventDoc, code: string): Promise<RegistrationDoc | null> {
   const { registrations } = await collections();
   return registrations.findOne({ eventId: event._id, code: code.trim().toUpperCase() });
+}
+
+export async function findById(event: EventDoc, id: ObjectId): Promise<RegistrationDoc> {
+  const { registrations } = await collections();
+  const doc = await registrations.findOne({ _id: id, eventId: event._id });
+  if (!doc) throw new HttpError(404, "registration_not_found");
+  return doc;
 }
 
 /** Pulls the ticket code out of a scanned QR (a ticket URL) or typed text. */
@@ -246,6 +256,8 @@ export interface HostRegistration {
   source: RegistrationDoc["source"];
   status: RegistrationDoc["status"];
   checkedInAt: string | null;
+  /** When the ticket was last emailed (null: never). */
+  emailedAt: string | null;
   createdAt: string;
 }
 
@@ -262,6 +274,7 @@ export function toHostRegistration(doc: RegistrationDoc): HostRegistration {
     source: doc.source,
     status: doc.status,
     checkedInAt: doc.checkedInAt?.toISOString() ?? null,
+    emailedAt: doc.emailedAt?.toISOString() ?? null,
     createdAt: doc.createdAt.toISOString(),
   };
 }

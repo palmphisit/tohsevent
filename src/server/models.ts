@@ -157,6 +157,10 @@ export interface RegistrationDoc {
   /** "self" (on-site sign-up), "staff-link", or the user id of the host/photographer who scanned. */
   checkedInBy: string | null;
   consentAt: Date;
+  /** Language of the page the guest signed up on (ticket email); older rows use the event's. */
+  locale?: Locale;
+  /** When the ticket was last emailed to the guest. */
+  emailedAt?: Date | null;
   createdAt: Date;
 }
 
@@ -243,7 +247,8 @@ export interface GuestSessionDoc {
   /** Privacy-policy version the guest accepted before joining (PDPA consent record). */
   consent?: { version: string; at: Date };
   /** Opt-in email for "official photos are ready" (removed on unsubscribe or album purge). */
-  notify?: { email: string; consentAt: Date; notifiedAt: Date | null };
+  /** `locale`: language of the page the guest subscribed from (emails are sent in it). */
+  notify?: { email: string; consentAt: Date; notifiedAt: Date | null; locale?: Locale };
   createdAt: Date;
 }
 

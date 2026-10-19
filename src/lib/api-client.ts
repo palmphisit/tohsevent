@@ -13,6 +13,7 @@ import type { DriveExportView } from "@/server/services/drive-export";
 import type { EventInfo } from "@/server/services/event-info";
 import type { CheckInResult, HostRegistration, RegistrationSettings, RegistrationStats } from "@/server/services/registration";
 import type { CustomPlanConfig } from "./custom-plan";
+import type { Locale } from "./i18n";
 import type { PreparedImage } from "./image";
 
 export type { CheckInResult, EventInfo, HostRegistration, RegistrationSettings, RegistrationStats, Appearance, DriveExportView, SlideshowSettings, InviteView, MemberView, BrandingAsset, BrandingEditorState, SaveBrandingInput, CreateEventInput, HostEvent, HostPhoto, HostPhotoView, PublicEvent, PublicPhoto, ReportReason, UpdateEventInput };
@@ -140,8 +141,8 @@ export function completeUpload(slug: string, photoId: string) {
   return request<{ photo: PublicPhoto }>(`${base(slug)}/photos/${photoId}/complete`, { method: "POST" });
 }
 
-export function subscribeNotify(slug: string, email: string) {
-  return request<{ notifyEmail: string }>(`${base(slug)}/notify`, { method: "POST", body: JSON.stringify({ email }) });
+export function subscribeNotify(slug: string, email: string, locale: Locale) {
+  return request<{ notifyEmail: string }>(`${base(slug)}/notify`, { method: "POST", body: JSON.stringify({ email, locale }) });
 }
 
 export function unsubscribeNotify(slug: string) {
@@ -326,7 +327,7 @@ export function listHostRegistrations(eventId: string, params: { q?: string; fil
   return request<{ items: HostRegistration[]; stats: RegistrationStats }>(`${hostBase(eventId)}/registrations?${query}`);
 }
 
-export function updateRegistration(eventId: string, regId: string, action: "checkin" | "undo" | "cancel") {
+export function updateRegistration(eventId: string, regId: string, action: "checkin" | "undo" | "cancel" | "email") {
   return request<{ registration: HostRegistration }>(`${hostBase(eventId)}/registrations/${regId}`, {
     method: "PATCH",
     body: JSON.stringify({ action }),
@@ -341,11 +342,12 @@ export interface RegisterInput {
   partySize?: number;
   answer?: string | null;
   consent: true;
+  locale?: Locale;
 }
 
 export function registerForEvent(slug: string, input: RegisterInput, onsiteKey?: string | null) {
   const query = onsiteKey ? `?onsite=${encodeURIComponent(onsiteKey)}` : "";
-  return request<{ code: string; ticketUrl: string; checkedInAt: string | null }>(`${base(slug)}/register${query}`, {
+  return request<{ code: string; ticketUrl: string; checkedInAt: string | null; emailed: boolean }>(`${base(slug)}/register${query}`, {
     method: "POST",
     body: JSON.stringify(input),
   });

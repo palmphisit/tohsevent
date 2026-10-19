@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Download, Footprints, Search, Undo2, XCircle } from "lucide-react";
+import { CheckCircle2, Download, Footprints, Mail, Search, Undo2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { listHostRegistrations, updateRegistration, type HostRegistration, type RegistrationStats } from "@/lib/api-client";
 import { showError } from "@/lib/error-popup";
@@ -10,8 +10,17 @@ type Filter = "all" | "in" | "out" | "cancelled";
 const time = (iso: string) =>
   new Date(iso).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
 
-/** Attendee list with search, filters, check-in/undo, cancel and CSV export. */
-export function AttendeeList({ eventId, initial }: { eventId: string; initial: { items: HostRegistration[]; stats: RegistrationStats } }) {
+/** Attendee list with search, filters, check-in/undo, cancel, re-send ticket and CSV export. */
+export function AttendeeList({
+  eventId,
+  initial,
+  emailAvailable,
+}: {
+  eventId: string;
+  initial: { items: HostRegistration[]; stats: RegistrationStats };
+  /** Email is set up, so tickets can be sent again. */
+  emailAvailable: boolean;
+}) {
   const [items, setItems] = useState(initial.items);
   const [stats, setStats] = useState(initial.stats);
   const [q, setQ] = useState("");
@@ -29,14 +38,15 @@ export function AttendeeList({ eventId, initial }: { eventId: string; initial: {
     return () => clearTimeout(timer);
   }, [load]);
 
-  async function act(reg: HostRegistration, action: "checkin" | "undo" | "cancel") {
+  async function act(reg: HostRegistration, action: "checkin" | "undo" | "cancel" | "email") {
     if (action === "cancel" && !window.confirm(`ยกเลิกการลงทะเบียนของ ${reg.name}?`)) return;
+    if (action === "email" && !window.confirm(`ส่งบัตรเข้างานไปที่ ${reg.email} อีกครั้ง?`)) return;
     setBusy(reg.id);
     try {
       await updateRegistration(eventId, reg.id, action);
       await load();
     } catch {
-      showError("ทำรายการไม่สำเร็จ ลองอีกครั้ง");
+      showError(action === "email" ? "ส่งอีเมลไม่สำเร็จ ลองอีกครั้ง" : "ทำรายการไม่สำเร็จ ลองอีกครั้ง");
     } finally {
       setBusy(null);
     }
@@ -116,6 +126,17 @@ export function AttendeeList({ eventId, initial }: { eventId: string; initial: {
                 ) : (
                   <>
                     <span className="text-xs text-slate-400">ลงทะเบียน {time(reg.createdAt)}</span>
+                    {emailAvailable && reg.email && (
+                      <button
+                        type="button"
+                        disabled={busy === reg.id}
+                        onClick={() => act(reg, "email")}
+                        title={reg.emailedAt ? `ส่งบัตรทางอีเมลอีกครั้ง (ส่งล่าสุด ${time(reg.emailedAt)})` : "ส่งบัตรทางอีเมล"}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-primary"
+                      >
+                        <Mail className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={busy === reg.id}

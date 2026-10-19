@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, CheckCircle2, Clock, Images, MapPin, Navigation, Users } from "lucide-react";
+import { CalendarDays, CalendarPlus, CheckCircle2, Clock, Images, Mail, MapPin, Navigation, Users } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -23,6 +23,7 @@ const COPY = {
     calendar: "Add to calendar",
     details: "Event details",
     album: "Event album",
+    emailed: (to: string) => `A copy was emailed to ${to}`,
   },
   th: {
     time: (range: string) => `${range} น.`,
@@ -34,9 +35,15 @@ const COPY = {
     calendar: "ลงปฏิทิน",
     details: "รายละเอียดงาน",
     album: "อัลบั้มรูปในงาน",
+    emailed: (to: string) => `ส่งบัตรนี้ไปที่ ${to} แล้ว`,
   },
 };
 
+/** "jo***@gmail.com": enough for the guest to recognise, not enough to harvest. */
+function maskEmail(email: string): string {
+  const [user, domain] = email.split("@");
+  return `${user.slice(0, 2)}***@${domain}`;
+}
 
 /** The guest's ticket: QR for the door, event essentials and links. The code in the URL is the secret. */
 type Params = Promise<{ slug: string; code: string }>;
@@ -118,6 +125,11 @@ async function Ticket({ params, locale }: { params: Params; locale: Locale }) {
               </p>
             ) : (
               <p className="mt-3 text-sm text-muted">{t.showQr}</p>
+            )}
+            {reg.email && reg.emailedAt && (
+              <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-muted">
+                <Mail className="h-3.5 w-3.5" /> {t.emailed(maskEmail(reg.email))}
+              </p>
             )}
             {(info.venueName || info.address) && (
               <p className="mt-4 flex items-start justify-center gap-1.5 text-sm text-ink/75">

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LOCALES } from "../../lib/i18n";
 import { EVENT_INFO_LIMITS as I } from "../services/event-info";
 import { REGISTRATION_LIMITS as R } from "../services/registration";
 
@@ -43,4 +44,6 @@ export const registerSchema = z.object({
   answer: z.string().trim().max(R.answerMax).nullable().optional(),
   /** The guest accepted the privacy notice. */
   consent: z.literal(true),
+  /** Language of the page the guest signed up on (ticket email). */
+  locale: z.enum(LOCALES).optional(),
 });

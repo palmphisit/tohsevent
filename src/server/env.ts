@@ -38,9 +38,11 @@ const schema = z.object({
   GOOGLE_API_BASE: z.url().default("https://www.googleapis.com"),
   /** ffmpeg binary used to cut video poster frames (installed in the Docker image). */
   FFMPEG_PATH: z.string().default("ffmpeg"),
-  /** Resend API key (re_...). Email features (guest notifications, expiry reminders) are hidden when unset. */
+  /** Resend API key (re_...). Email features (tickets, guest notifications, expiry reminders) are off when unset. */
   RESEND_API_KEY: z.string().startsWith("re_").optional(),
   EMAIL_FROM: z.string().default("Tohs Event <noreply@tohsevent.com>"),
+  /** Overridable for local testing against a mock. */
+  RESEND_API_BASE: z.url().default("https://api.resend.com"),
 });
 
 export type Env = z.infer<typeof schema>;

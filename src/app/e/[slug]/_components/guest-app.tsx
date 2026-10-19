@@ -320,7 +320,7 @@ function NotifyMe({
     setState("saving");
     try {
       await ensureSession();
-      const { notifyEmail } = await subscribeNotify(slug, value);
+      const { notifyEmail } = await subscribeNotify(slug, value, locale);
       onChange(notifyEmail);
       setState("idle");
     } catch {

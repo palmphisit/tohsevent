@@ -104,6 +104,7 @@ export function RegisterForm({ slug, ask, onsiteKey }: RegisterFormProps) {
           partySize: ask.partySize ? form.partySize : undefined,
           answer: ask.question ? form.answer || null : null,
           consent: true,
+          locale,
         },
         onsiteKey,
       );

@@ -1,6 +1,7 @@
 import { ClipboardCheck, ExternalLink, Footprints, QrCode, ScanLine, Ticket, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { emailEnabled } from "@/server/email";
 import { planOf } from "@/server/models";
 import { qrSvg } from "@/server/qr";
 import { eventInfoOf } from "@/server/services/event-info";
@@ -109,7 +110,7 @@ async function RegistrationLoader({ params }: Pick<PageProps<"/dashboard/events/
 
       <Panels
         panels={[
-          { id: "list", label: "รายชื่อ", content: <AttendeeList eventId={id} initial={{ items, stats }} /> },
+          { id: "list", label: "รายชื่อ", content: <AttendeeList eventId={id} initial={{ items, stats }} emailAvailable={emailEnabled()} /> },
           {
             id: "settings",
             label: "ตั้งค่า",
