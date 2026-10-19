@@ -27,6 +27,7 @@ export function EventForm({ event }: { event?: HostEvent }) {
   const [date, setDate] = useState(event?.date ?? today);
   const [slug, setSlug] = useState("");
   const [accessMode, setAccessMode] = useState<HostEvent["accessMode"]>(event?.accessMode ?? "public");
+  const [language, setLanguage] = useState<HostEvent["language"]>(event?.language ?? "th");
   const [password, setPassword] = useState("");
   const [guestUpload, setGuestUpload] = useState(event?.guestUpload ?? true);
   const [status, setStatus] = useState<"live" | "closed">(event?.status === "closed" ? "closed" : "live");
@@ -47,6 +48,7 @@ export function EventForm({ event }: { event?: HostEvent }) {
           accessMode,
           guestUpload,
           status,
+          language,
           ...(password ? { password } : {}),
         });
         setPassword("");
@@ -57,6 +59,7 @@ export function EventForm({ event }: { event?: HostEvent }) {
           title,
           date,
           accessMode,
+          language,
           ...(slug ? { slug } : {}),
           ...(password ? { password } : {}),
         });
@@ -101,6 +104,27 @@ export function EventForm({ event }: { event?: HostEvent }) {
           </div>
         </Field>
       )}
+
+      <Field label="ภาษาของหน้าแขก">
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ["th", "ภาษาไทย", "QR และลิงก์เปิดหน้าภาษาไทย"],
+              ["en", "English", "QR และลิงก์เปิดหน้าภาษาอังกฤษ"],
+            ] as const
+          ).map(([value, label, desc]) => (
+            <label
+              key={value}
+              className={`cursor-pointer rounded-xl border px-4 py-3 ${language === value ? "border-primary bg-primary-soft" : "border-slate-300"}`}
+            >
+              <input type="radio" name="language" value={value} checked={language === value} onChange={() => setLanguage(value)} className="sr-only" />
+              <span className="block font-medium">{label}</span>
+              <span className="block text-xs text-slate-500">{desc}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-1.5 text-xs text-slate-500">แขกสลับภาษาเองได้ทุกเมื่อ · เปลี่ยนภาษาแล้ว QR ที่พิมพ์ไปแล้วยังใช้ได้</p>
+      </Field>
 
       <Field label="การเข้าถึง">
         <div className="grid grid-cols-2 gap-2">

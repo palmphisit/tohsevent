@@ -17,7 +17,7 @@ export const GET = route(async (req: NextRequest, ctx: RouteContext<"/api/v1/hos
   if (!parsed.success) throw new HttpError(400, "invalid_query", z.prettifyError(parsed.error));
   const { format, size } = parsed.data;
 
-  const url = guestEventUrl(event.slug);
+  const url = guestEventUrl(event);
   const filename = `tohsevent-${event.slug}-qr.${format}`;
   const headers = { "Content-Disposition": `attachment; filename="${filename}"`, "Cache-Control": "private, max-age=300" };
 

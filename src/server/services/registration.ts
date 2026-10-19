@@ -2,9 +2,9 @@ import { randomInt } from "node:crypto";
 import { MongoServerError, ObjectId, type Filter } from "mongodb";
 import { collections } from "../db";
 import { eventKey } from "../event-keys";
-import { env } from "../env";
 import { HttpError } from "../http";
 import { planOf, type EventDoc, type RegistrationDoc, type RegistrationSettingsDoc } from "../models";
+import { guestEventUrl } from "./host-events";
 
 // Sign-up before the event (online), sign-up at the door (on-site, self-service or by staff),
 // and check-in with the time each guest arrived. Every registration has a ticket code that
@@ -373,15 +373,15 @@ export async function registrationsCsv(event: EventDoc): Promise<string> {
   return "﻿" + [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
 }
 
-export function ticketUrl(event: Pick<EventDoc, "slug">, code: string): string {
-  return `${env().APP_ORIGIN}/e/${event.slug}/ticket/${code}`;
+/** Ticket page in the event's language; the QR on it holds this URL (the code is what check-in reads). */
+export function ticketUrl(event: Pick<EventDoc, "slug" | "language">, code: string): string {
+  return guestEventUrl(event, `/ticket/${code}`);
 }
 
 export function registrationLinks(event: EventDoc) {
-  const base = `${env().APP_ORIGIN}/e/${event.slug}`;
   return {
-    page: `${base}/info`,
-    onsite: `${base}/info?onsite=${eventKey(event, "onsite")}`,
-    staff: `${base}/checkin?key=${eventKey(event, "checkin")}`,
+    page: guestEventUrl(event, "/info"),
+    onsite: guestEventUrl(event, `/info?onsite=${eventKey(event, "onsite")}`),
+    staff: guestEventUrl(event, `/checkin?key=${eventKey(event, "checkin")}`),
   };
 }

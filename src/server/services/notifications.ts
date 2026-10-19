@@ -69,7 +69,7 @@ export async function notifyGuestsPhotosReady(event: EventDoc): Promise<number> 
     .toArray();
   if (sessions.length === 0) return 0;
 
-  const link = guestEventUrl(event.slug);
+  const link = guestEventUrl(event);
   const title = escapeHtml(event.title);
   const messages: EmailMessage[] = await Promise.all(
     sessions.map(async (session) => {

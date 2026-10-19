@@ -2,6 +2,25 @@
 
 import { Camera, CameraOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useLocale } from "@/lib/use-locale";
+
+const T = {
+  en: {
+    denied: "Camera permission denied. Allow the camera in your browser settings",
+    unsupported: "This browser can't use the camera",
+    useSearch: "use the search below instead",
+    starting: "Opening camera…",
+    start: "Open camera to scan QR",
+  },
+  th: {
+    denied: "ไม่ได้รับอนุญาตให้ใช้กล้อง เปิดสิทธิ์กล้องในการตั้งค่าเบราว์เซอร์",
+    unsupported: "เบราว์เซอร์นี้ใช้กล้องไม่ได้",
+    useSearch: "ใช้การค้นหารายชื่อด้านล่างแทนได้",
+    starting: "กำลังเปิดกล้อง…",
+    start: "เปิดกล้องสแกน QR",
+  },
+};
+
 
 interface Detector {
   detect(source: CanvasImageSource): Promise<{ rawValue: string }[]>;
@@ -13,6 +32,7 @@ interface Detector {
  */
 export function QrScanner({ onScan, paused }: { onScan: (text: string) => void; paused: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const t = T[useLocale()];
   const [state, setState] = useState<"idle" | "starting" | "on" | "denied" | "unsupported">("idle");
   const scanRef = useRef(onScan);
   const pausedRef = useRef(paused);
@@ -100,7 +120,7 @@ export function QrScanner({ onScan, paused }: { onScan: (text: string) => void; 
             <div>
               <CameraOff className="mx-auto h-10 w-10 text-slate-400" />
               <p className="mt-2 text-sm text-slate-300">
-                {state === "denied" ? "ไม่ได้รับอนุญาตให้ใช้กล้อง เปิดสิทธิ์กล้องในการตั้งค่าเบราว์เซอร์" : "เบราว์เซอร์นี้ใช้กล้องไม่ได้"} · ใช้การค้นหารายชื่อด้านล่างแทนได้
+                {state === "denied" ? t.denied : t.unsupported} · {t.useSearch}
               </p>
             </div>
           ) : (
@@ -109,7 +129,7 @@ export function QrScanner({ onScan, paused }: { onScan: (text: string) => void; 
               onClick={() => setState("starting")}
               className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-4 font-semibold text-slate-900 shadow-lg"
             >
-              <Camera className="h-5 w-5" /> {state === "starting" ? "กำลังเปิดกล้อง…" : "เปิดกล้องสแกน QR"}
+              <Camera className="h-5 w-5" /> {state === "starting" ? t.starting : t.start}
             </button>
           )}
         </div>

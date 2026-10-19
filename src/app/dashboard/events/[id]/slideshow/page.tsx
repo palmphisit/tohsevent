@@ -19,7 +19,7 @@ export default function EventSlideshowPage({ params }: PageProps<"/dashboard/eve
 async function SlideshowLoader({ params }: Pick<PageProps<"/dashboard/events/[id]/slideshow">, "params">) {
   const { id } = await params;
   const event = await loadHostEventPage(id);
-  const guestUrl = guestEventUrl(event.slug);
+  const guestUrl = guestEventUrl(event);
 
   return (
     <>

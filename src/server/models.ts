@@ -1,6 +1,7 @@
 import type { ObjectId } from "mongodb";
 import type { BrandFontId } from "../lib/brand-fonts";
 import type { CustomPlanConfig } from "../lib/custom-plan";
+import type { Locale } from "../lib/i18n";
 import { CUSTOM_PLAN } from "../lib/custom-plan";
 import { customPlan, PLANS, type Plan, type PlanTier } from "./plans";
 
@@ -37,6 +38,8 @@ export interface EventDoc {
   expiryReminderSentAt?: Date | null;
   /** People invited to work on the event besides the owner (photographers). */
   members?: EventMember[];
+  /** Language of the event's QR code and guest links (missing = Thai, the original default). */
+  language?: Locale;
   /** Details shown on the event page: description, times, venue, map location, schedule. */
   info?: EventInfoDoc;
   /** Sign-up before the event and check-in at the door; missing = registration off. */

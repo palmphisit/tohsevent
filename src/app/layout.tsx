@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   applicationName: SITE.name,
   openGraph: {
     type: "website",
-    locale: "th_TH",
+    locale: "en_US",
     url: "/",
     siteName: SITE.name,
     title: SITE.title,
@@ -38,11 +38,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="th" className={`${notoSansThai.variable} h-full antialiased`}>
+    <html lang="en" className={`${notoSansThai.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-white font-sans text-slate-900">
         {children}
-        <ErrorPopupHost />
         <Suspense>
+          <ErrorPopupHost />
           <OAuthErrorWatcher />
         </Suspense>
       </body>

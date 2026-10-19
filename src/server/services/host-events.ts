@@ -5,6 +5,7 @@ import { collections } from "../db";
 import { env } from "../env";
 import { HttpError, parseObjectId } from "../http";
 import { planOf, type EventDoc, type EventStatus } from "../models";
+import { localePath, type Locale } from "../../lib/i18n";
 import { hashPassword } from "../password";
 import { publicUrl } from "../storage";
 import { expiryFor, PLANS, type PlanTier } from "../plans";
@@ -43,11 +44,19 @@ export interface HostEvent {
   /** ISO date-time the album closes to guests; null for legacy events without expiry. */
   expiresAt: string | null;
   guestUrl: string;
+  /** Language of the guest pages, QR code and links. */
+  language: Locale;
   createdAt: string;
 }
 
-export function guestEventUrl(slug: string): string {
-  return `${env().APP_ORIGIN}/e/${slug}`;
+/** The event's language for guests (QR code, shared links); events made before languages are Thai. */
+export function eventLocale(event: Pick<EventDoc, "language">): Locale {
+  return event.language ?? "th";
+}
+
+/** Public URL of an event page in the event's language, e.g. https://tohsevent.com/th/e/abc/info. */
+export function guestEventUrl(event: Pick<EventDoc, "slug" | "language">, subpath = ""): string {
+  return `${env().APP_ORIGIN}${localePath(eventLocale(event), `/e/${event.slug}${subpath}`)}`;
 }
 
 export function toHostEvent(event: EventDoc, role: EventRole = "owner"): HostEvent {
@@ -72,7 +81,8 @@ export function toHostEvent(event: EventDoc, role: EventRole = "owner"): HostEve
     },
     usage: { guests: event.counters.guests, photos: event.usage?.photos ?? event.counters.photos },
     expiresAt: event.expiresAt?.toISOString() ?? null,
-    guestUrl: guestEventUrl(event.slug),
+    guestUrl: guestEventUrl(event),
+    language: eventLocale(event),
     createdAt: event.createdAt.toISOString(),
   };
 }
@@ -140,6 +150,7 @@ export interface CreateEventInput {
   slug?: string;
   accessMode: EventDoc["access"]["mode"];
   password?: string;
+  language?: Locale;
 }
 
 export async function createHostEvent(ownerId: ObjectId, input: CreateEventInput): Promise<EventDoc> {
@@ -153,6 +164,7 @@ export async function createHostEvent(ownerId: ObjectId, input: CreateEventInput
     ownerId,
     title: input.title,
     date,
+    language: input.language ?? "th",
     access:
       input.accessMode === "password"
         ? { mode: "password", passwordHash: await hashPassword(input.password!) }
@@ -190,6 +202,7 @@ export interface UpdateEventInput {
   password?: string;
   guestUpload?: boolean;
   status?: Extract<EventStatus, "live" | "closed">;
+  language?: Locale;
 }
 
 export async function updateHostEvent(ownerId: ObjectId, eventId: ObjectId, input: UpdateEventInput): Promise<EventDoc> {
@@ -200,6 +213,7 @@ export async function updateHostEvent(ownerId: ObjectId, eventId: ObjectId, inpu
   const set: Record<string, unknown> = { updatedAt: new Date() };
 
   if (input.title !== undefined) set.title = input.title;
+  if (input.language !== undefined) set.language = input.language;
   if (input.date !== undefined) {
     const date = parseDay(input.date);
     set.date = date;

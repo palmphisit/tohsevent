@@ -28,8 +28,8 @@ export const GET = route(async (_req: NextRequest, ctx: RouteContext<"/e/[slug]/
     `SUMMARY:${esc(event.title)}`,
     ...(place ? [`LOCATION:${esc(place)}`] : []),
     ...(info.location ? [`GEO:${info.location.lat};${info.location.lng}`] : []),
-    `DESCRIPTION:${esc([info.description, guestEventUrl(event.slug)].filter(Boolean).join("\n\n"))}`,
-    `URL:${guestEventUrl(event.slug)}/info`,
+    `DESCRIPTION:${esc([info.description, guestEventUrl(event)].filter(Boolean).join("\n\n"))}`,
+    `URL:${guestEventUrl(event, "/info")}`,
     "END:VEVENT",
     "END:VCALENDAR",
   ];

@@ -5,6 +5,24 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { showError } from "@/lib/error-popup";
 import { safeNext } from "./safe-next";
+import { useLocale } from "@/lib/use-locale";
+import { localePath } from "@/lib/i18n";
+
+const T = {
+  en: {
+    failed: "Could not connect to Google. Please try again.",
+    going: "Going to Google…",
+    continue: "Continue with Google",
+    orEmail: "or use email",
+  },
+  th: {
+    failed: "เชื่อมต่อกับ Google ไม่สำเร็จ ลองอีกครั้ง",
+    going: "กำลังไปที่ Google…",
+    continue: "ดำเนินการต่อด้วย Google",
+    orEmail: "หรือใช้อีเมล",
+  },
+};
+
 
 /** Google's "G" mark (brand colors as required by Google's sign-in branding guidelines). */
 function GoogleMark() {
@@ -20,18 +38,20 @@ function GoogleMark() {
 
 
 export function GoogleSignIn() {
+  const locale = useLocale();
+  const t = T[locale];
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
   const [pending, setPending] = useState(false);
 
   async function signIn() {
     setPending(true);
-    const back = `/login?next=${encodeURIComponent(next)}`;
+    const back = `${localePath(locale, "/login")}?next=${encodeURIComponent(next)}`;
     // Failures come back to the login page as ?error=<code>; the root layout shows them as a popup.
     const { error } = await authClient.signIn.social({ provider: "google", callbackURL: next, errorCallbackURL: back });
     if (error) {
       setPending(false);
-      showError("เชื่อมต่อกับ Google ไม่สำเร็จ ลองอีกครั้ง");
+      showError(t.failed);
     }
   }
 
@@ -44,11 +64,11 @@ export function GoogleSignIn() {
         className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3 font-medium text-slate-800 transition hover:bg-slate-50 disabled:opacity-50"
       >
         <GoogleMark />
-        {pending ? "กำลังไปที่ Google…" : "ดำเนินการต่อด้วย Google"}
+        {pending ? t.going : t.continue}
       </button>
       <div className="mt-5 flex items-center gap-3 text-xs text-slate-400">
         <span className="h-px flex-1 bg-slate-200" />
-        หรือใช้อีเมล
+        {t.orEmail}
         <span className="h-px flex-1 bg-slate-200" />
       </div>
     </>

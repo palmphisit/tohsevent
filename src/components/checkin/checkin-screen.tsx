@@ -13,19 +13,93 @@ import {
 } from "@/lib/api-client";
 import { showError } from "@/lib/error-popup";
 import { QrScanner } from "./qr-scanner";
+import { useLocale } from "@/lib/use-locale";
+import { INTL_LOCALE } from "@/lib/i18n";
+
+const T = {
+  en: {
+    scanErrors: {
+      invalid_ticket: "This QR isn't a ticket for this event",
+      ticket_not_found: "Ticket not found for this event",
+      registration_cancelled: "This ticket was cancelled",
+    } as Record<string, string>,
+    badLink: "This check-in link isn't valid. Ask the organizer for a new one.",
+    checkinFailed: "Check-in failed. Please try again.",
+    confirmUndo: (name: string) => `Undo check-in for ${name}?`,
+    failed: "Something went wrong",
+    title: "Door check-in",
+    refresh: "Refresh",
+    arrived: "Checked in",
+    people: (n: string) => `${n} people`,
+    walkIns: (n: string) => `${n} walk-in registrations`,
+    checkedInAt: (time: string) => `Checked in at ${time}`,
+    alreadyAt: (time: string) => `Already checked in at ${time}`,
+    walkIn: "Register a walk-in",
+    search: "Search name, phone or ticket code",
+    noResults: "No one found",
+    time: (time: string) => time,
+    undo: "Undo check-in",
+    checkIn: "Check in",
+    full: "Fully booked",
+    duplicate: "This email is already registered. Find the name in the list instead.",
+    registerFailed: "Registration failed. Please try again.",
+    walkInTitle: "Walk-in registration",
+    close: "Close",
+    walkInNote: "Arrival time is recorded right after registering · the guest agrees to their details being used for this event's registration",
+    fullName: "Full name *",
+    phone: "Phone",
+    emailOptional: "Email (optional)",
+    organization: "Company / organization",
+    partySize: "People",
+    saving: "Saving…",
+    registerCheckIn: "Register and check in",
+  },
+  th: {
+    scanErrors: {
+      invalid_ticket: "QR นี้ไม่ใช่บัตรของงาน",
+      ticket_not_found: "ไม่พบบัตรนี้ในงานนี้",
+      registration_cancelled: "บัตรนี้ถูกยกเลิกแล้ว",
+    } as Record<string, string>,
+    badLink: "ลิงก์เช็กอินไม่ถูกต้อง ขอลิงก์ใหม่จากผู้จัดงาน",
+    checkinFailed: "เช็กอินไม่สำเร็จ ลองอีกครั้ง",
+    confirmUndo: (name: string) => `ยกเลิกการเช็กอินของ ${name}?`,
+    failed: "ทำรายการไม่สำเร็จ",
+    title: "เช็กอินหน้างาน",
+    refresh: "รีเฟรช",
+    arrived: "เข้างานแล้ว",
+    people: (n: string) => `${n} คน`,
+    walkIns: (n: string) => `ลงทะเบียนหน้างาน ${n} รายการ`,
+    checkedInAt: (time: string) => `เช็กอินแล้ว ${time} น.`,
+    alreadyAt: (time: string) => `เช็กอินไปแล้วเมื่อ ${time} น.`,
+    walkIn: "ลงทะเบียนหน้างาน (walk-in)",
+    search: "ค้นหาชื่อ เบอร์โทร หรือรหัสบัตร",
+    noResults: "ไม่พบรายชื่อ",
+    time: (time: string) => `${time} น.`,
+    undo: "ยกเลิกการเช็กอิน",
+    checkIn: "เช็กอิน",
+    full: "ที่นั่งเต็มแล้ว",
+    duplicate: "อีเมลนี้ลงทะเบียนไว้แล้ว ค้นหาชื่อในรายการแทน",
+    registerFailed: "ลงทะเบียนไม่สำเร็จ ลองอีกครั้ง",
+    walkInTitle: "ลงทะเบียนหน้างาน",
+    close: "ปิด",
+    walkInNote: "บันทึกเวลาเข้างานทันทีหลังลงทะเบียน · ผู้ลงทะเบียนยินยอมให้ใช้ข้อมูลเพื่อการลงทะเบียนของงานนี้",
+    fullName: "ชื่อ-นามสกุล *",
+    phone: "เบอร์โทรศัพท์",
+    emailOptional: "อีเมล (ไม่บังคับ)",
+    organization: "บริษัท / องค์กร",
+    partySize: "จำนวนคน",
+    saving: "กำลังบันทึก…",
+    registerCheckIn: "ลงทะเบียนและเช็กอิน",
+  },
+};
 
 type Flash =
   | { kind: "ok"; reg: HostRegistration }
   | { kind: "again"; reg: HostRegistration }
   | { kind: "error"; message: string };
 
-const clock = (iso: string) => new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
+const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
 
-const SCAN_ERRORS: Record<string, string> = {
-  invalid_ticket: "QR นี้ไม่ใช่บัตรของงาน",
-  ticket_not_found: "ไม่พบบัตรนี้ในงานนี้",
-  registration_cancelled: "บัตรนี้ถูกยกเลิกแล้ว",
-};
 
 /**
  * Door check-in: scan tickets, search the list, sign up walk-ins. Every check-in stores the
@@ -42,6 +116,8 @@ export function CheckinScreen({
   title: string;
   ask: { phone: boolean; organization: boolean; partySize: boolean };
 }) {
+  const locale = useLocale();
+  const t = T[locale];
   const [stats, setStats] = useState<RegistrationStats | null>(null);
   const [items, setItems] = useState<HostRegistration[]>([]);
   const [q, setQ] = useState("");
@@ -56,9 +132,9 @@ export function CheckinScreen({
       setItems(data.items);
       setStats(data.stats);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) showError("ลิงก์เช็กอินไม่ถูกต้อง ขอลิงก์ใหม่จากผู้จัดงาน");
+      if (error instanceof ApiError && error.status === 401) showError(t.badLink);
     }
-  }, [slug, staffKey, q]);
+  }, [slug, staffKey, q, t.badLink]);
 
   useEffect(() => {
     const first = setTimeout(() => void refresh(), q ? 250 : 0);
@@ -89,7 +165,7 @@ export function CheckinScreen({
       feedback(next.kind);
       void refresh();
     } catch (error) {
-      setFlash({ kind: "error", message: (error instanceof ApiError && SCAN_ERRORS[error.code]) || "เช็กอินไม่สำเร็จ ลองอีกครั้ง" });
+      setFlash({ kind: "error", message: (error instanceof ApiError && t.scanErrors[error.code]) || t.checkinFailed });
       feedback("error");
     } finally {
       busy.current = false;
@@ -105,12 +181,12 @@ export function CheckinScreen({
   }
 
   async function undo(reg: HostRegistration) {
-    if (!window.confirm(`ยกเลิกการเช็กอินของ ${reg.name}?`)) return;
+    if (!window.confirm(t.confirmUndo(reg.name))) return;
     try {
       await undoGuestCheckIn(slug, { key: staffKey, id: reg.id });
       void refresh();
     } catch {
-      showError("ทำรายการไม่สำเร็จ");
+      showError(t.failed);
     }
   }
 
@@ -120,10 +196,10 @@ export function CheckinScreen({
     <div className="mx-auto w-full max-w-xl space-y-4 px-4 py-5">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-primary">เช็กอินหน้างาน</p>
+          <p className="text-xs font-medium text-primary">{t.title}</p>
           <h1 className="truncate text-xl font-semibold">{title}</h1>
         </div>
-        <button type="button" onClick={() => void refresh()} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="รีเฟรช">
+        <button type="button" onClick={() => void refresh()} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label={t.refresh}>
           <RefreshCw className="h-5 w-5" />
         </button>
       </header>
@@ -131,17 +207,17 @@ export function CheckinScreen({
       {stats && (
         <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
           <div className="flex items-end justify-between">
-            <p className="text-sm text-slate-500">เข้างานแล้ว</p>
+            <p className="text-sm text-slate-500">{t.arrived}</p>
             <p>
-              <span className="text-3xl font-semibold tabular-nums">{stats.checkedInHeadcount.toLocaleString("th-TH")}</span>
-              <span className="text-slate-400"> / {stats.headcount.toLocaleString("th-TH")} คน</span>
+              <span className="text-3xl font-semibold tabular-nums">{stats.checkedInHeadcount.toLocaleString(INTL_LOCALE[locale])}</span>
+              <span className="text-slate-400"> / {t.people(stats.headcount.toLocaleString(INTL_LOCALE[locale]))}</span>
             </p>
           </div>
           <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
             <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
           </div>
           <p className="mt-1.5 text-xs text-slate-500">
-            {pct}% · ลงทะเบียนหน้างาน {stats.onsite.toLocaleString("th-TH")} รายการ
+            {pct}% · {t.walkIns(stats.onsite.toLocaleString(INTL_LOCALE[locale]))}
           </p>
         </div>
       )}
@@ -161,9 +237,9 @@ export function CheckinScreen({
             ) : (
               <>
                 <p className="mt-3 text-2xl font-semibold">{flash.reg.name}</p>
-                {flash.reg.partySize > 1 && <p className="text-lg">{flash.reg.partySize} คน</p>}
+                {flash.reg.partySize > 1 && <p className="text-lg">{t.people(String(flash.reg.partySize))}</p>}
                 <p className="mt-1 text-white/90">
-                  {flash.kind === "ok" ? `เช็กอินแล้ว ${clock(flash.reg.checkedInAt!)} น.` : `เช็กอินไปแล้วเมื่อ ${clock(flash.reg.checkedInAt!)} น.`}
+                  {flash.kind === "ok" ? t.checkedInAt(clock(flash.reg.checkedInAt!)) : t.alreadyAt(clock(flash.reg.checkedInAt!))}
                 </p>
               </>
             )}
@@ -176,7 +252,7 @@ export function CheckinScreen({
         onClick={() => setWalkIn(true)}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3.5 font-medium text-white"
       >
-        <UserPlus className="h-5 w-5" /> ลงทะเบียนหน้างาน (walk-in)
+        <UserPlus className="h-5 w-5" /> {t.walkIn}
       </button>
 
       <section className="rounded-2xl bg-white ring-1 ring-slate-200">
@@ -185,12 +261,12 @@ export function CheckinScreen({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="ค้นหาชื่อ เบอร์โทร หรือรหัสบัตร"
+            placeholder={t.search}
             className="w-full rounded-xl border border-slate-300 py-3 pr-3 pl-9 text-base outline-none focus:border-primary"
           />
         </div>
         <ul className="max-h-[50vh] divide-y divide-slate-100 overflow-y-auto">
-          {items.length === 0 && <li className="px-4 py-8 text-center text-sm text-slate-500">ไม่พบรายชื่อ</li>}
+          {items.length === 0 && <li className="px-4 py-8 text-center text-sm text-slate-500">{t.noResults}</li>}
           {items.map((reg) => (
             <li key={reg.id} className="flex items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
@@ -205,14 +281,14 @@ export function CheckinScreen({
               </div>
               {reg.checkedInAt ? (
                 <span className="flex items-center gap-1">
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">{clock(reg.checkedInAt)} น.</span>
-                  <button type="button" onClick={() => undo(reg)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="ยกเลิกการเช็กอิน">
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">{t.time(clock(reg.checkedInAt))}</span>
+                  <button type="button" onClick={() => undo(reg)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label={t.undo}>
                     <Undo2 className="h-4 w-4" />
                   </button>
                 </span>
               ) : (
                 <button type="button" onClick={() => void submit({ id: reg.id })} className="shrink-0 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white">
-                  เช็กอิน
+                  {t.checkIn}
                 </button>
               )}
             </li>
@@ -246,6 +322,7 @@ function WalkInSheet({
   onClose: () => void;
   onSubmit: (input: { name: string; phone: string | null; email: string | null; organization: string | null; partySize?: number }) => Promise<void>;
 }) {
+  const t = T[useLocale()];
   const [form, setForm] = useState({ name: "", phone: "", email: "", organization: "", partySize: 1 });
   const [pending, setPending] = useState(false);
   const input = "w-full rounded-xl border border-slate-300 px-4 py-3 text-base outline-none focus:border-primary";
@@ -264,10 +341,10 @@ function WalkInSheet({
     } catch (error) {
       showError(
         error instanceof ApiError && error.code === "registration_full"
-          ? "ที่นั่งเต็มแล้ว"
+          ? t.full
           : error instanceof ApiError && error.code === "already_registered"
-            ? "อีเมลนี้ลงทะเบียนไว้แล้ว ค้นหาชื่อในรายการแทน"
-            : "ลงทะเบียนไม่สำเร็จ ลองอีกครั้ง",
+            ? t.duplicate
+            : t.registerFailed,
       );
       setPending(false);
     }
@@ -277,21 +354,21 @@ function WalkInSheet({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" onClick={onClose}>
       <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-3 rounded-t-3xl bg-white p-5 sm:rounded-3xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">ลงทะเบียนหน้างาน</h2>
-          <button type="button" onClick={onClose} aria-label="ปิด" className="rounded-lg p-1 text-slate-400">
+          <h2 className="text-lg font-semibold">{t.walkInTitle}</h2>
+          <button type="button" onClick={onClose} aria-label={t.close} className="rounded-lg p-1 text-slate-400">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <p className="text-xs text-slate-500">บันทึกเวลาเข้างานทันทีหลังลงทะเบียน · ผู้ลงทะเบียนยินยอมให้ใช้ข้อมูลเพื่อการลงทะเบียนของงานนี้</p>
-        <input required autoFocus maxLength={80} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="ชื่อ-นามสกุล *" className={input} />
-        {ask.phone && <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="เบอร์โทรศัพท์" className={input} />}
-        <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="อีเมล (ไม่บังคับ)" className={input} />
+        <p className="text-xs text-slate-500">{t.walkInNote}</p>
+        <input required autoFocus maxLength={80} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t.fullName} className={input} />
+        {ask.phone && <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={t.phone} className={input} />}
+        <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder={t.emailOptional} className={input} />
         {ask.organization && (
-          <input value={form.organization} onChange={(e) => setForm({ ...form, organization: e.target.value })} placeholder="บริษัท / องค์กร" className={input} />
+          <input value={form.organization} onChange={(e) => setForm({ ...form, organization: e.target.value })} placeholder={t.organization} className={input} />
         )}
         {ask.partySize && (
           <label className="flex items-center justify-between rounded-xl border border-slate-300 px-4 py-2.5 text-sm">
-            จำนวนคน
+            {t.partySize}
             <select value={form.partySize} onChange={(e) => setForm({ ...form, partySize: Number(e.target.value) })} className="font-semibold">
               {Array.from({ length: 10 }, (_, i) => (
                 <option key={i + 1} value={i + 1}>
@@ -302,7 +379,7 @@ function WalkInSheet({
           </label>
         )}
         <button disabled={pending} className="w-full rounded-2xl bg-primary px-4 py-3.5 font-semibold text-white disabled:opacity-50">
-          {pending ? "กำลังบันทึก…" : "ลงทะเบียนและเช็กอิน"}
+          {pending ? t.saving : t.registerCheckIn}
         </button>
       </form>
     </div>

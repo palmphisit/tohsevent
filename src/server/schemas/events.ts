@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LOCALES } from "../../lib/i18n";
 import { SLUG_PATTERN } from "../services/host-events";
 
 const title = z.string().trim().min(1).max(120);
@@ -12,6 +13,7 @@ export const createEventSchema = z.object({
   slug: z.string().trim().toLowerCase().regex(SLUG_PATTERN, "Use 3-40 lowercase letters, numbers or dashes").optional(),
   accessMode: accessMode.default("public"),
   password: password.optional(),
+  language: z.enum(LOCALES).default("th"),
 });
 
 export const updateEventSchema = z
@@ -22,5 +24,6 @@ export const updateEventSchema = z
     password,
     guestUpload: z.boolean(),
     status: z.enum(["live", "closed"]),
+    language: z.enum(LOCALES),
   })
   .partial();

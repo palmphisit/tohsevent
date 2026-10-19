@@ -9,6 +9,41 @@ import { DEFAULT_BRAND_COLOR, contrastText } from "@/lib/brand-fonts";
 import { formatDuration } from "@/lib/video";
 import "./slideshow.css";
 import { useSlideshowPhotos } from "./use-slideshow-photos";
+import { useLocale } from "@/lib/use-locale";
+import { INTL_LOCALE } from "@/lib/i18n";
+
+const T = {
+  en: {
+    emptyTitle: "No photos yet",
+    emptyText: "Scan the QR code to be the first to share",
+    resume: "Resume",
+    pause: "Pause",
+    exitFullscreen: "Exit full screen",
+    fullscreen: "Full screen",
+    qrCaption: "Scan to share your photos",
+    total: (n: string) => `${n} photos & videos`,
+    isNew: "New!",
+    photographer: "Photographer",
+    newFromPhotographer: "New from the photographer",
+    newFrom: (name: string) => `New photo from ${name}`,
+    newPhoto: "New photo!",
+  },
+  th: {
+    emptyTitle: "ยังไม่มีรูปในงาน",
+    emptyText: "สแกน QR เพื่อเป็นคนแรกที่แชร์รูป",
+    resume: "เล่นต่อ",
+    pause: "หยุด",
+    exitFullscreen: "ออกจากเต็มจอ",
+    fullscreen: "เต็มจอ",
+    qrCaption: "สแกนเพื่อแชร์รูปของคุณ",
+    total: (n: string) => `${n} รูปและวิดีโอ`,
+    isNew: "ใหม่!",
+    photographer: "ช่างภาพ",
+    newFromPhotographer: "รูปใหม่จากช่างภาพ",
+    newFrom: (name: string) => `รูปใหม่จาก ${name}`,
+    newPhoto: "รูปใหม่!",
+  },
+};
 
 const FADE_MS = 1_100;
 const MAX_VIDEO_MS = 60_000;
@@ -36,6 +71,8 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
   );
   // The venue screen follows what the host saves; the dashboard preview shows the draft.
   const settings = (interactive && savedSettings) || props.settings;
+  const locale = useLocale();
+  const t = T[locale];
   const [paused, setPaused] = useState(false);
   const [idle, setIdle] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -51,7 +88,7 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
 
   useVenueScreen(interactive, rootRef, { setIdle, setFullscreen, setPaused, skip: () => skipRef.current() });
 
-  const date = new Date(event.date).toLocaleDateString("th-TH", { dateStyle: "long", timeZone: "UTC" });
+  const date = new Date(event.date).toLocaleDateString(INTL_LOCALE[locale], { dateStyle: "long", timeZone: "UTC" });
   const shortUrl = guestUrl.replace(/^https?:\/\//, "");
 
   return (
@@ -69,8 +106,8 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
         <div className="ss-stage">
           {loaded && photos.length === 0 ? (
             <div className="ss-empty">
-              <strong>ยังไม่มีรูปในงาน</strong>
-              <span>สแกน QR เพื่อเป็นคนแรกที่แชร์รูป</span>
+              <strong>{t.emptyTitle}</strong>
+              <span>{t.emptyText}</span>
             </div>
           ) : settings.layout === "wall" ? (
             <Wall photos={photos} takeFresh={takeFresh} settings={settings} paused={paused} />
@@ -88,11 +125,11 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
             <div className="ss-controls">
               <button type="button" onClick={() => setPaused((p) => !p)}>
                 {paused ? <Play /> : <Pause />}
-                {paused ? "เล่นต่อ" : "หยุด"}
+                {paused ? t.resume : t.pause}
               </button>
               <button type="button" onClick={() => toggleFullscreen(rootRef.current)}>
                 {fullscreen ? <Minimize /> : <Maximize />}
-                {fullscreen ? "ออกจากเต็มจอ" : "เต็มจอ"}
+                {fullscreen ? t.exitFullscreen : t.fullscreen}
               </button>
             </div>
           )}
@@ -112,12 +149,12 @@ export function SlideshowView({ slug, apiKey, event, qrSvg, guestUrl, interactiv
             <div className="ss-qr-card">
               {/* SVG generated server-side by the qrcode library from our own URL */}
               <div className="ss-qr" dangerouslySetInnerHTML={{ __html: qrSvg }} />
-              <p className="ss-qr-caption">{settings.qrCaption || "สแกนเพื่อแชร์รูปของคุณ"}</p>
+              <p className="ss-qr-caption">{settings.qrCaption || t.qrCaption}</p>
               <p className="ss-qr-url">{shortUrl}</p>
             </div>
           )}
           <div className="ss-panel-foot">
-            <span>{total.toLocaleString("th-TH")} รูปและวิดีโอ</span>
+            <span>{t.total(total.toLocaleString(INTL_LOCALE[locale]))}</span>
             <span className="ss-powered">
               <BrandMark className="" />
               Tohs Event
@@ -287,6 +324,7 @@ function SpotlightLayer({
   paused?: boolean;
   onVideoEnd?: () => void;
 }) {
+  const t = T[useLocale()];
   const { photo } = shown;
   const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -323,10 +361,10 @@ function SpotlightLayer({
         />
       )}
       <div className="ss-caption">
-        {shown.isNew && <span className="ss-new-chip">ใหม่!</span>}
+        {shown.isNew && <span className="ss-new-chip">{t.isNew}</span>}
         {settings.showUploader && (photo.uploaderName || photo.source === "official") && (
           <span className="ss-chip">
-            {photo.source === "official" ? "📸 ช่างภาพ" : `📷 ${photo.uploaderName}`}
+            {photo.source === "official" ? `📸 ${t.photographer}` : `📷 ${photo.uploaderName}`}
             {photo.kind === "video" && photo.durationSec !== undefined && ` · ${formatDuration(photo.durationSec)}`}
           </span>
         )}
@@ -364,6 +402,7 @@ function Wall({
   settings: SlideshowSettings;
   paused: boolean;
 }) {
+  const t = T[useLocale()];
   const wallRef = useRef<HTMLDivElement>(null);
   const columnRefs = useRef<(HTMLDivElement | null)[]>([]);
   const columns = useColumnCount(wallRef);
@@ -462,10 +501,10 @@ function Wall({
             )}
             <p>
               {popup.source === "official"
-                ? "📸 รูปใหม่จากช่างภาพ"
+                ? `📸 ${t.newFromPhotographer}`
                 : settings.showUploader && popup.uploaderName
-                  ? `📷 รูปใหม่จาก ${popup.uploaderName}`
-                  : "📷 รูปใหม่!"}
+                  ? `📷 ${t.newFrom(popup.uploaderName)}`
+                  : `📷 ${t.newPhoto}`}
             </p>
           </div>
         </div>

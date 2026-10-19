@@ -6,17 +6,68 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiError, registerForEvent } from "@/lib/api-client";
 import { showError } from "@/lib/error-popup";
+import { useLocale } from "@/lib/use-locale";
+import { INTL_LOCALE, localePath, switchLocalePath } from "@/lib/i18n";
 
 const input =
   "w-full rounded-xl border border-line bg-transparent px-4 py-3 text-base outline-none placeholder:text-muted focus:border-brand";
 
-const ERRORS: Record<string, string> = {
-  already_registered: "อีเมลนี้ลงทะเบียนงานนี้ไว้แล้ว ตรวจสอบบัตรในอีเมลหรือติดต่อผู้จัดงาน",
-  registration_full: "ที่นั่งเต็มแล้ว",
-  registration_closed: "ปิดรับลงทะเบียนออนไลน์แล้ว",
-  registration_off: "งานนี้ยังไม่เปิดลงทะเบียน",
-  email_required: "กรุณากรอกอีเมลเพื่อรับบัตรเข้างาน",
-  phone_required: "กรุณากรอกเบอร์โทรศัพท์",
+
+const T = {
+  en: {
+    errors: {
+      already_registered: "This email is already registered for this event. Check your ticket or contact the organizer.",
+      registration_full: "Fully booked",
+      registration_closed: "Online registration has closed",
+      registration_off: "Registration isn't open for this event",
+      email_required: "Please enter your email to receive your ticket",
+      phone_required: "Please enter your phone number",
+    } as Record<string, string>,
+    failed: "Registration failed. Please try again.",
+    doneTitle: "You're registered and checked in",
+    arrivedAt: (time: string) => `Arrived at ${time}. Welcome!`,
+    myTicket: "View my ticket",
+    fullName: "Full name *",
+    emailOptional: "Email (optional)",
+    emailRequired: "Email * (for your ticket)",
+    phoneOptional: "Phone (optional)",
+    phoneRequired: "Phone *",
+    organization: "Company / organization",
+    partySize: "People attending (including you)",
+    people: (n: number) => `${n} ${n === 1 ? "person" : "people"}`,
+    consent: "I agree that the organizer may use this information for this event's registration and check-in, under the",
+    privacy: "privacy policy",
+    registering: "Registering…",
+    registerCheckIn: "Register and check in",
+    register: "Register",
+  },
+  th: {
+    errors: {
+      already_registered: "อีเมลนี้ลงทะเบียนงานนี้ไว้แล้ว ตรวจสอบบัตรในอีเมลหรือติดต่อผู้จัดงาน",
+      registration_full: "ที่นั่งเต็มแล้ว",
+      registration_closed: "ปิดรับลงทะเบียนออนไลน์แล้ว",
+      registration_off: "งานนี้ยังไม่เปิดลงทะเบียน",
+      email_required: "กรุณากรอกอีเมลเพื่อรับบัตรเข้างาน",
+      phone_required: "กรุณากรอกเบอร์โทรศัพท์",
+    } as Record<string, string>,
+    failed: "ลงทะเบียนไม่สำเร็จ ลองอีกครั้ง",
+    doneTitle: "ลงทะเบียนและเช็กอินแล้ว",
+    arrivedAt: (time: string) => `เวลาเข้างาน ${time} น. ยินดีต้อนรับ!`,
+    myTicket: "ดูบัตรของฉัน",
+    fullName: "ชื่อ-นามสกุล *",
+    emailOptional: "อีเมล (ไม่บังคับ)",
+    emailRequired: "อีเมล * (ใช้รับบัตรเข้างาน)",
+    phoneOptional: "เบอร์โทรศัพท์ (ไม่บังคับ)",
+    phoneRequired: "เบอร์โทรศัพท์ *",
+    organization: "บริษัท / องค์กร",
+    partySize: "จำนวนผู้มาร่วมงาน (รวมตัวคุณ)",
+    people: (n: number) => `${n} คน`,
+    consent: "ยินยอมให้ผู้จัดงานใช้ข้อมูลนี้เพื่อการลงทะเบียนและเช็กอินของงานนี้ ตาม",
+    privacy: "นโยบายความเป็นส่วนตัว",
+    registering: "กำลังลงทะเบียน…",
+    registerCheckIn: "ลงทะเบียนและเช็กอิน",
+    register: "ลงทะเบียนร่วมงาน",
+  },
 };
 
 export interface RegisterFormProps {
@@ -27,6 +78,8 @@ export interface RegisterFormProps {
 }
 
 export function RegisterForm({ slug, ask, onsiteKey }: RegisterFormProps) {
+  const locale = useLocale();
+  const t = T[locale];
   const router = useRouter();
   const onsite = !!onsiteKey;
   const [form, setForm] = useState({ name: "", email: "", phone: "", organization: "", partySize: 1, answer: "" });
@@ -54,15 +107,15 @@ export function RegisterForm({ slug, ask, onsiteKey }: RegisterFormProps) {
         },
         onsiteKey,
       );
-      const ticketPath = new URL(result.ticketUrl).pathname;
+      const ticketPath = switchLocalePath(new URL(result.ticketUrl).pathname, locale);
       if (onsite && result.checkedInAt) {
         setArrived({
-          time: new Date(result.checkedInAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
+          time: new Date(result.checkedInAt).toLocaleTimeString(INTL_LOCALE[locale], { hour: "2-digit", minute: "2-digit" }),
           ticket: ticketPath,
         });
       } else router.push(ticketPath);
     } catch (err) {
-      showError((err instanceof ApiError && ERRORS[err.code]) || "ลงทะเบียนไม่สำเร็จ ลองอีกครั้ง");
+      showError((err instanceof ApiError && t.errors[err.code]) || t.failed);
     } finally {
       setPending(false);
     }
@@ -72,10 +125,10 @@ export function RegisterForm({ slug, ask, onsiteKey }: RegisterFormProps) {
     return (
       <div className="flex flex-col items-center py-6 text-center">
         <CheckCircle2 className="h-14 w-14 text-emerald-500" />
-        <p className="mt-3 text-xl font-semibold">ลงทะเบียนและเช็กอินแล้ว</p>
-        <p className="mt-1 text-ink/70">เวลาเข้างาน {arrived.time} น. ยินดีต้อนรับ!</p>
+        <p className="mt-3 text-xl font-semibold">{t.doneTitle}</p>
+        <p className="mt-1 text-ink/70">{t.arrivedAt(arrived.time)}</p>
         <Link href={arrived.ticket} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-surface px-4 py-2.5 text-sm font-medium">
-          <Ticket className="h-4 w-4" /> ดูบัตรของฉัน
+          <Ticket className="h-4 w-4" /> {t.myTicket}
         </Link>
       </div>
     );
@@ -83,13 +136,13 @@ export function RegisterForm({ slug, ask, onsiteKey }: RegisterFormProps) {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <input required maxLength={80} value={form.name} onChange={set("name")} placeholder="ชื่อ-นามสกุล *" autoComplete="name" className={input} />
+      <input required maxLength={80} value={form.name} onChange={set("name")} placeholder={t.fullName} autoComplete="name" className={input} />
       <input
         type="email"
         required={!onsite}
         value={form.email}
         onChange={set("email")}
-        placeholder={onsite ? "อีเมล (ไม่บังคับ)" : "อีเมล * (ใช้รับบัตรเข้างาน)"}
+        placeholder={onsite ? t.emailOptional : t.emailRequired}
         autoComplete="email"
         className={input}
       />
@@ -99,21 +152,21 @@ export function RegisterForm({ slug, ask, onsiteKey }: RegisterFormProps) {
           required={!onsite}
           value={form.phone}
           onChange={set("phone")}
-          placeholder={onsite ? "เบอร์โทรศัพท์ (ไม่บังคับ)" : "เบอร์โทรศัพท์ *"}
+          placeholder={onsite ? t.phoneOptional : t.phoneRequired}
           autoComplete="tel"
           className={input}
         />
       )}
       {ask.organization && (
-        <input value={form.organization} onChange={set("organization")} maxLength={120} placeholder="บริษัท / องค์กร" className={input} />
+        <input value={form.organization} onChange={set("organization")} maxLength={120} placeholder={t.organization} className={input} />
       )}
       {ask.partySize && (
         <label className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-2.5 text-sm">
-          <span>จำนวนผู้มาร่วมงาน (รวมตัวคุณ)</span>
+          <span>{t.partySize}</span>
           <select value={form.partySize} onChange={set("partySize")} className="rounded-lg bg-transparent px-2 py-1 font-semibold">
             {Array.from({ length: 10 }, (_, i) => (
               <option key={i + 1} value={i + 1}>
-                {i + 1} คน
+                {t.people(i + 1)}
               </option>
             ))}
           </select>
@@ -128,9 +181,9 @@ export function RegisterForm({ slug, ask, onsiteKey }: RegisterFormProps) {
       <label className="flex items-start gap-2.5 text-sm text-ink/75">
         <input type="checkbox" required checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 accent-[var(--color-brand)]" />
         <span>
-          ยินยอมให้ผู้จัดงานใช้ข้อมูลนี้เพื่อการลงทะเบียนและเช็กอินของงานนี้ ตาม{" "}
-          <Link href="/privacy" target="_blank" className="underline">
-            นโยบายความเป็นส่วนตัว
+          {t.consent}{" "}
+          <Link href={localePath(locale, "/privacy")} target="_blank" className="underline">
+            {t.privacy}
           </Link>
         </span>
       </label>
@@ -138,7 +191,7 @@ export function RegisterForm({ slug, ask, onsiteKey }: RegisterFormProps) {
         disabled={pending}
         className="w-full rounded-2xl bg-brand px-4 py-4 text-lg font-semibold text-brand-contrast shadow-lg shadow-black/5 transition hover:opacity-95 disabled:opacity-50"
       >
-        {pending ? "กำลังลงทะเบียน…" : onsite ? "ลงทะเบียนและเช็กอิน" : "ลงทะเบียนร่วมงาน"}
+        {pending ? t.registering : onsite ? t.registerCheckIn : t.register}
       </button>
     </form>
   );

@@ -3,6 +3,7 @@ import type { Filter } from "mongodb";
 import { collections } from "../db";
 import { env } from "../env";
 import type { EventDoc, PhotoDoc, SlideshowDoc } from "../models";
+import { guestEventUrl } from "./host-events";
 import { toPublicPhoto, type PublicPhoto } from "./photos";
 import { repairListedPosters } from "./video-posters";
 
@@ -63,8 +64,8 @@ export function verifySlideshowKey(event: Pick<EventDoc, "_id">, key: string | n
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-export function slideshowUrl(event: Pick<EventDoc, "_id" | "slug">): string {
-  return `${env().APP_ORIGIN}/e/${event.slug}/slideshow?key=${slideshowKey(event)}`;
+export function slideshowUrl(event: Pick<EventDoc, "_id" | "slug" | "language">): string {
+  return guestEventUrl(event, `/slideshow?key=${slideshowKey(event)}`);
 }
 
 /** Newest visible photos and videos (guest-facing URLs: watermarked on Free events). */

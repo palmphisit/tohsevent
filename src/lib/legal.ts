@@ -4,7 +4,9 @@
 export const LEGAL = {
   serviceName: "Tohs Event",
   controllerName: "Tohs Event (โปรดระบุชื่อบุคคล/นิติบุคคลผู้ให้บริการ)",
+  controllerNameEn: "Tohs Event (enter the legal name of the service provider)",
   contactEmail: "privacy@tohsevent.com",
-  effectiveDate: "18 ตุลาคม 2569",
+  effectiveDateTh: "18 ตุลาคม 2569",
+  effectiveDateEn: "18 October 2026",
   version: "2026-10-18",
 } as const;

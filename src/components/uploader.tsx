@@ -6,6 +6,7 @@ import { ApiError, putToStorage, type PublicPhoto } from "@/lib/api-client";
 import { prepareImage, type PreparedImage } from "@/lib/image";
 import { listPending, removePending, savePending, setPendingPhotoId } from "@/lib/upload-store";
 import { showError } from "@/lib/error-popup";
+import { useLocale } from "@/lib/use-locale";
 import { isVideoFile, prepareVideo, VideoRejected, type VideoLimits } from "@/lib/video";
 import type { PresignedUpload } from "@/server/services/photos";
 
@@ -31,38 +32,96 @@ interface QueueItem {
   progress?: number;
 }
 
-const VIDEO_ERRORS: Record<string, string> = {
-  video_not_allowed: "แพ็กเกจของงานนี้ยังไม่รองรับวิดีโอ",
-  video_too_large: "วิดีโอไฟล์ใหญ่เกินกำหนด",
-  video_too_long: "วิดีโอยาวเกินกำหนด",
-  video_unsupported: "ไฟล์วิดีโอนี้ไม่รองรับ",
+const T = {
+  en: {
+    errors: {
+      video_not_allowed: "This event's plan doesn't support videos",
+      video_too_large: "The video file is too large",
+      video_too_long: "The video is too long",
+      video_unsupported: "This video file isn't supported",
+      quota_exceeded: "You've reached this event's upload limit",
+      uploads_disabled: "This event is no longer accepting photos",
+      photo_limit_reached: "This album is full",
+      storage_full: "This event's storage is full",
+      original_too_large: "The original file is too large for the plan",
+      event_full: "This event has reached its guest limit",
+      consent_declined: "Please accept the policy before uploading",
+      unsupported_original: "This original file type isn't supported",
+      part_upload_failed: "Uploading the original failed",
+    } as Record<string, string>,
+    failed: "Upload failed",
+    hours: "hours",
+    minutes: "minutes",
+    seconds: "seconds",
+    pickMedia: "Take / choose photos or videos",
+    pickPhotos: "Take / choose photos to upload",
+    videoLimits: (length: string, size: string) => `Videos up to ${length} · files up to ${size}`,
+    resuming: (n: number) => `Resuming ${n} unfinished file${n === 1 ? "" : "s"} from last time`,
+    progress: (done: number, total: number) => `Uploaded ${done}/${total} files`,
+    keepOpen: "Keep this page open",
+    retry: "retry",
+    remove: "Remove from queue",
+    queued: "Queued",
+    preparingVideo: "Preparing video",
+    resizing: "Resizing",
+    original: (pct: number) => `Original ${pct}%`,
+    video: (pct: number) => `Video ${pct}%`,
+    uploading: "Uploading",
+  },
+  th: {
+    errors: {
+      video_not_allowed: "แพ็กเกจของงานนี้ยังไม่รองรับวิดีโอ",
+      video_too_large: "วิดีโอไฟล์ใหญ่เกินกำหนด",
+      video_too_long: "วิดีโอยาวเกินกำหนด",
+      video_unsupported: "ไฟล์วิดีโอนี้ไม่รองรับ",
+      quota_exceeded: "อัปโหลดครบจำนวนที่งานกำหนดแล้ว",
+      uploads_disabled: "งานนี้ปิดรับรูปแล้ว",
+      photo_limit_reached: "อัลบั้มนี้เต็มแล้ว",
+      storage_full: "พื้นที่ของงานนี้เต็มแล้ว",
+      original_too_large: "ไฟล์ต้นฉบับใหญ่เกินแพ็กเกจ",
+      event_full: "งานนี้มีแขกครบจำนวนแล้ว",
+      consent_declined: "ต้องยอมรับนโยบายก่อนอัปโหลด",
+      unsupported_original: "ชนิดไฟล์ต้นฉบับไม่รองรับ",
+      part_upload_failed: "อัปต้นฉบับไม่สำเร็จ",
+    } as Record<string, string>,
+    failed: "อัปโหลดไม่สำเร็จ",
+    hours: "ชั่วโมง",
+    minutes: "นาที",
+    seconds: "วินาที",
+    pickMedia: "ถ่าย / เลือกรูปหรือวิดีโอ",
+    pickPhotos: "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด",
+    videoLimits: (length: string, size: string) => `วิดีโอยาวไม่เกิน ${length} · ไฟล์ไม่เกิน ${size}`,
+    resuming: (n: number) => `กำลังอัปโหลดต่อ ${n} ไฟล์ที่ค้างจากครั้งก่อน`,
+    progress: (done: number, total: number) => `อัปโหลดแล้ว ${done}/${total} ไฟล์`,
+    keepOpen: "อย่าเพิ่งปิดหน้านี้",
+    retry: "ลองใหม่",
+    remove: "เอาออกจากคิว",
+    queued: "รอคิว",
+    preparingVideo: "กำลังเตรียมวิดีโอ",
+    resizing: "กำลังย่อรูป",
+    original: (pct: number) => `ต้นฉบับ ${pct}%`,
+    video: (pct: number) => `วิดีโอ ${pct}%`,
+    uploading: "กำลังอัปโหลด",
+  },
 };
+type Messages = (typeof T)["en"];
 
-function formatLength(sec: number): string {
-  if (sec >= 3600) return `${Math.round(sec / 360) / 10} ชั่วโมง`;
-  if (sec >= 120) return `${Math.round(sec / 60)} นาที`;
-  return `${Math.round(sec)} วินาที`;
+const VIDEO_ERROR_CODES = ["video_not_allowed", "video_too_large", "video_too_long", "video_unsupported"];
+
+function formatLength(sec: number, t: Messages): string {
+  if (sec >= 3600) return `${Math.round(sec / 360) / 10} ${t.hours}`;
+  if (sec >= 120) return `${Math.round(sec / 60)} ${t.minutes}`;
+  return `${Math.round(sec)} ${t.seconds}`;
 }
 
 function formatSize(bytes: number): string {
   return bytes >= 1024 ** 3 ? `${Math.round((bytes / 1024 ** 3) * 10) / 10} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof VideoRejected) return VIDEO_ERRORS[error.code];
-  if (error instanceof ApiError) {
-    if (error.code in VIDEO_ERRORS) return VIDEO_ERRORS[error.code];
-    if (error.code === "quota_exceeded") return "อัปโหลดครบจำนวนที่งานกำหนดแล้ว";
-    if (error.code === "uploads_disabled") return "งานนี้ปิดรับรูปแล้ว";
-    if (error.code === "photo_limit_reached") return "อัลบั้มนี้เต็มแล้ว";
-    if (error.code === "storage_full") return "พื้นที่ของงานนี้เต็มแล้ว";
-    if (error.code === "original_too_large") return "ไฟล์ต้นฉบับใหญ่เกินแพ็กเกจ";
-    if (error.code === "event_full") return "งานนี้มีแขกครบจำนวนแล้ว";
-    if (error.code === "consent_declined") return "ต้องยอมรับนโยบายก่อนอัปโหลด";
-    if (error.code === "unsupported_original") return "ชนิดไฟล์ต้นฉบับไม่รองรับ";
-    if (error.code === "part_upload_failed") return "อัปต้นฉบับไม่สำเร็จ";
-  }
-  return "อัปโหลดไม่สำเร็จ";
+function errorMessage(error: unknown, t: Messages): string {
+  if (error instanceof VideoRejected) return t.errors[error.code];
+  if (error instanceof ApiError && t.errors[error.code]) return t.errors[error.code];
+  return t.failed;
 }
 
 /** Errors that retrying will not fix; such files are dropped from the resume store. */
@@ -70,7 +129,7 @@ function isPermanent(error: unknown): boolean {
   if (error instanceof VideoRejected) return true;
   return (
     error instanceof ApiError &&
-    ["quota_exceeded", "uploads_disabled", "photo_limit_reached", "storage_full", "event_full", ...Object.keys(VIDEO_ERRORS)].includes(
+    ["quota_exceeded", "uploads_disabled", "photo_limit_reached", "storage_full", "event_full", ...VIDEO_ERROR_CODES].includes(
       error.code,
     )
   );
@@ -162,6 +221,7 @@ export function Uploader({
   persistKey?: string;
   label?: string;
 }) {
+  const t = T[useLocale()];
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<QueueItem[]>([]);
   const [restoredCount, setRestoredCount] = useState(0);
@@ -213,11 +273,11 @@ export function Uploader({
       void removePending(id);
     } catch (error) {
       console.error("upload failed", error);
-      update(id, { status: "error", error: errorMessage(error) });
+      update(id, { status: "error", error: errorMessage(error, t) });
       if (isPermanent(error)) {
         void removePending(id);
         // Retrying will not help (quota, plan limits): say why once, as a popup.
-        showError(errorMessage(error), "อัปโหลดไม่สำเร็จ");
+        showError(errorMessage(error, t), t.failed);
       }
     }
   }
@@ -309,22 +369,22 @@ export function Uploader({
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-4 text-lg font-medium text-brand-contrast shadow-lg shadow-black/5 transition hover:opacity-95 active:scale-[0.99]"
       >
         {target.video ? <Video className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
-        {label ?? (target.video ? "ถ่าย / เลือกรูปหรือวิดีโอ" : "ถ่ายรูป / เลือกรูปเพื่ออัปโหลด")}
+        {label ?? (target.video ? t.pickMedia : t.pickPhotos)}
       </button>
       {target.video && (
         <p className="mt-2 text-center text-xs text-muted">
-          วิดีโอยาวไม่เกิน {formatLength(target.video.maxDurationSec)} · ไฟล์ไม่เกิน {formatSize(target.video.maxBytes)}
+          {t.videoLimits(formatLength(target.video.maxDurationSec, t), formatSize(target.video.maxBytes))}
         </p>
       )}
 
       {items.length > 0 && (
         <div className="mt-3 rounded-xl border border-line p-3">
           {restoredCount > 0 && (
-            <p className="mb-1 text-sm text-ink/70">กำลังอัปโหลดต่อ {restoredCount} ไฟล์ที่ค้างจากครั้งก่อน</p>
+            <p className="mb-1 text-sm text-ink/70">{t.resuming(restoredCount)}</p>
           )}
           <p className="text-sm text-ink/70">
-            อัปโหลดแล้ว {doneCount}/{items.length} ไฟล์
-            {inFlight && <span className="text-muted/80"> · อย่าเพิ่งปิดหน้านี้</span>}
+            {t.progress(doneCount, items.length)}
+            {inFlight && <span className="text-muted/80"> · {t.keepOpen}</span>}
           </p>
           {pendingItems.length > 0 && (
             <ul className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
@@ -338,27 +398,27 @@ export function Uploader({
                     {item.status === "error" ? (
                       <>
                         <button type="button" onClick={() => retry(item.id)} className="underline">
-                          {item.error} · ลองใหม่
+                          {item.error} · {t.retry}
                         </button>
                         <button
                           type="button"
                           onClick={() => discard(item.id)}
-                          aria-label="เอาออกจากคิว"
+                          aria-label={t.remove}
                           className="absolute top-0.5 right-1 px-1 text-sm"
                         >
                           ✕
                         </button>
                       </>
                     ) : item.status === "queued" ? (
-                      "รอคิว"
+                      t.queued
                     ) : item.status === "processing" ? (
-                      item.isVideo ? "กำลังเตรียมวิดีโอ" : "กำลังย่อรูป"
+                      item.isVideo ? t.preparingVideo : t.resizing
                     ) : item.status === "original" ? (
-                      `ต้นฉบับ ${Math.round((item.progress ?? 0) * 100)}%`
+                      t.original(Math.round((item.progress ?? 0) * 100))
                     ) : item.isVideo ? (
-                      `วิดีโอ ${Math.round((item.progress ?? 0) * 100)}%`
+                      t.video(Math.round((item.progress ?? 0) * 100))
                     ) : (
-                      "กำลังอัปโหลด"
+                      t.uploading
                     )}
                   </div>
                 </li>

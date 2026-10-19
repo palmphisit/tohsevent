@@ -2,6 +2,21 @@
 
 import { useEffect, useRef } from "react";
 import type { PublicPhoto } from "@/lib/api-client";
+import { useLocale } from "@/lib/use-locale";
+
+const T = {
+  en: {
+    close: "Close",
+    prev: "Previous photo",
+    next: "Next photo",
+  },
+  th: {
+    close: "ปิด",
+    prev: "รูปก่อนหน้า",
+    next: "รูปถัดไป",
+  },
+};
+
 
 /** Full-screen photo/video viewer with keyboard and swipe navigation. */
 export function Lightbox<P extends PublicPhoto>({
@@ -18,6 +33,7 @@ export function Lightbox<P extends PublicPhoto>({
   actions?: (photo: P) => React.ReactNode;
 }) {
   const photo = photos[index];
+  const t = T[useLocale()];
   const touchStartX = useRef<number | null>(null);
   const hasPrev = index > 0;
   const hasNext = index < photos.length - 1;
@@ -58,7 +74,7 @@ export function Lightbox<P extends PublicPhoto>({
           {index + 1} / {photos.length}
           {photo.uploaderName && <span> · {photo.uploaderName}</span>}
         </span>
-        <button type="button" onClick={onClose} className="rounded-full px-3 py-1 hover:bg-white/10" aria-label="ปิด">
+        <button type="button" onClick={onClose} className="rounded-full px-3 py-1 hover:bg-white/10" aria-label={t.close}>
           ✕
         </button>
       </div>
@@ -91,7 +107,7 @@ export function Lightbox<P extends PublicPhoto>({
           <button
             type="button"
             onClick={() => onNavigate(index - 1)}
-            aria-label="รูปก่อนหน้า"
+            aria-label={t.prev}
             className="absolute top-1/2 left-2 hidden -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 sm:block"
           >
             ‹
@@ -101,7 +117,7 @@ export function Lightbox<P extends PublicPhoto>({
           <button
             type="button"
             onClick={() => onNavigate(index + 1)}
-            aria-label="รูปถัดไป"
+            aria-label={t.next}
             className="absolute top-1/2 right-2 hidden -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 sm:block"
           >
             ›

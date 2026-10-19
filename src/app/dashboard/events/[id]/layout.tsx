@@ -26,7 +26,7 @@ async function EventHeader({ params }: Pick<LayoutProps<"/dashboard/events/[id]"
   const { event, role } = await loadEventPageForMember(id);
   const owner = role === "owner";
   const openReports = owner ? await countOpenReports(event) : 0;
-  const guestUrl = guestEventUrl(event.slug);
+  const guestUrl = guestEventUrl(event);
   const date = event.date.toLocaleDateString("th-TH", { dateStyle: "long", timeZone: "UTC" });
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert } from "lucide-react";
+import { useLocale } from "@/lib/use-locale";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -13,7 +14,13 @@ import {
 } from "@/lib/error-popup";
 
 /** Renders queued error popups one at a time (mounted once, in the root layout). */
+const T = {
+  en: { title: "Something went wrong", ok: "OK" },
+  th: { title: "เกิดข้อผิดพลาด", ok: "ตกลง" },
+};
+
 export function ErrorPopupHost() {
+  const t = T[useLocale()];
   const [queue, setQueue] = useState<ErrorPopup[]>([]);
   const okRef = useRef<HTMLButtonElement>(null);
   const current = queue[0];
@@ -47,7 +54,7 @@ export function ErrorPopupHost() {
           </span>
           <div className="min-w-0">
             <h2 id="error-popup-title" className="font-semibold text-slate-900">
-              {current.title}
+              {current.title ?? t.title}
             </h2>
             <p id="error-popup-message" className="mt-1 text-sm leading-relaxed text-slate-600">
               {current.message}
@@ -60,7 +67,7 @@ export function ErrorPopupHost() {
           onClick={() => dismissError(current.id)}
           className="mt-5 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-hover"
         >
-          ตกลง
+          {t.ok}
         </button>
       </div>
     </div>
@@ -72,6 +79,7 @@ export function ErrorPopupHost() {
  * them: show the matching popup, then clean the URL so a reload does not show it again.
  */
 export function OAuthErrorWatcher() {
+  const locale = useLocale();
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -79,14 +87,14 @@ export function OAuthErrorWatcher() {
 
   useEffect(() => {
     if (!code) return;
-    const known = OAUTH_ERRORS[code] ?? OAUTH_FALLBACK;
+    const known = OAUTH_ERRORS[locale][code] ?? OAUTH_FALLBACK[locale];
     showError(known.message, known.title);
     const rest = new URLSearchParams(params);
     rest.delete("error");
     rest.delete("error_description");
     const query = rest.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [code, params, pathname, router]);
+  }, [code, params, pathname, router, locale]);
 
   return null;
 }

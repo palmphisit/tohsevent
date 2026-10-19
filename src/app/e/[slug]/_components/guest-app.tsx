@@ -2,8 +2,9 @@
 
 import { ChevronRight, MapPin } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { BRAND_FONT_CLASS } from "@/app/brand-fonts";
+import { LanguageSwitch } from "@/components/language-switch";
 import { LegalFooter } from "@/components/legal-footer";
 import { Uploader, type UploadTarget } from "@/components/uploader";
 import {
@@ -20,6 +21,85 @@ import {
 import { EventHeader, HeroHeader } from "./event-header";
 import { Gallery } from "./gallery";
 import { showError } from "@/lib/error-popup";
+import { useLocale } from "@/lib/use-locale";
+import { INTL_LOCALE, localePath } from "@/lib/i18n";
+
+const T = {
+  en: {
+    infoLink: "Event details, schedule and map",
+    yourName: "Your name (optional)",
+    underReview: (n: number) => `${n} photo${n === 1 ? "" : "s"} held for the host to review before showing`,
+    uploadNote: "Your uploads are shown to this event's attendees. Location data is removed automatically",
+    privacy: "Privacy policy",
+    terms: "Terms of use",
+    uploadsClosed: "Uploads are closed for this event",
+    shareText: (title: string) => `Photos from ${title}`,
+    notifyFailed: "Couldn't save your email. Please try again.",
+    notifyAt: ["We'll email", "when the photographer's photos are ready"],
+    cancel: "Cancel",
+    notifyTitle: "Want the photographer's photos? We'll email you",
+    yourEmail: "Your email",
+    notifyMe: "Notify me",
+    notifyNote: "Only used for this event's notification. Unsubscribe any time; deleted when the album expires.",
+    consentTitle: "Before you share",
+    consentPoints: [
+      "Photos you upload are shown to this event's attendees and the host, and kept for the event's period",
+      "Location (GPS) data is removed from photos before upload",
+      "You can delete your own photos any time and ask for photos of you to be removed",
+      "Please only upload appropriate photos that the people in them are happy to share",
+    ],
+    readMore: "Read more in the",
+    and: "and",
+    acceptAndPick: "Accept and choose photos",
+    sponsors: "Thanks to our sponsors",
+    wrongPassword: "Wrong password",
+    eventFull: "This event has reached its guest limit",
+    failed: "Something went wrong. Please try again.",
+    passwordIntro: "This event needs a password to view and upload photos",
+    eventPassword: "Event password",
+    iAccept: "I accept the",
+    iUnderstand: "and understand that my uploads are shown to this event's attendees",
+    joining: "Joining…",
+    join: "Join event",
+  },
+  th: {
+    infoLink: "รายละเอียดงาน กำหนดการ และแผนที่",
+    yourName: "ชื่อของคุณ (ไม่บังคับ)",
+    underReview: (n: number) => `${n} รูปถูกซ่อนไว้ให้เจ้าภาพตรวจสอบก่อนแสดง`,
+    uploadNote: "รูปที่อัปโหลดจะแสดงให้ผู้ร่วมงานนี้เห็น ข้อมูลตำแหน่งในรูปถูกลบอัตโนมัติ",
+    privacy: "นโยบายความเป็นส่วนตัว",
+    terms: "ข้อกำหนดการใช้งาน",
+    uploadsClosed: "ปิดรับการอัปโหลดรูปสำหรับงานนี้แล้ว",
+    shareText: (title: string) => `รูปจากงาน ${title}`,
+    notifyFailed: "บันทึกอีเมลไม่สำเร็จ ลองอีกครั้ง",
+    notifyAt: ["เราจะแจ้งไปที่", "เมื่อรูปจากช่างภาพพร้อม"],
+    cancel: "ยกเลิก",
+    notifyTitle: "อยากได้รูปจากช่างภาพ? ให้เราแจ้งทางอีเมล",
+    yourEmail: "อีเมลของคุณ",
+    notifyMe: "แจ้งฉัน",
+    notifyNote: "ใช้ส่งแจ้งเตือนของงานนี้เท่านั้น ยกเลิกได้ทุกเมื่อ และลบเมื่ออัลบั้มหมดอายุ",
+    consentTitle: "ก่อนแชร์รูป",
+    consentPoints: [
+      "รูปที่คุณอัปโหลดจะแสดงให้ผู้ร่วมงานนี้และเจ้าภาพเห็น และเก็บไว้ตามระยะเวลาของงาน",
+      "ระบบลบข้อมูลตำแหน่ง (GPS) ออกจากรูปก่อนอัปโหลด",
+      "คุณลบรูปของตัวเองได้ทุกเมื่อ และขอให้ลบรูปที่มีคุณอยู่ได้",
+      "โปรดอัปโหลดเฉพาะรูปที่เหมาะสมและคนในรูปยินดีให้แชร์",
+    ],
+    readMore: "อ่านรายละเอียดใน",
+    and: "และ",
+    acceptAndPick: "ยอมรับและเลือกรูป",
+    sponsors: "ขอบคุณผู้สนับสนุน",
+    wrongPassword: "รหัสผ่านไม่ถูกต้อง",
+    eventFull: "งานนี้มีแขกครบจำนวนแล้ว",
+    failed: "เกิดข้อผิดพลาด ลองอีกครั้ง",
+    passwordIntro: "งานนี้ต้องใช้รหัสผ่านเพื่อเข้าชมและอัปโหลดรูป",
+    eventPassword: "รหัสผ่านงาน",
+    iAccept: "ฉันยอมรับ",
+    iUnderstand: "และเข้าใจว่ารูปที่อัปโหลดจะแสดงให้ผู้ร่วมงานนี้เห็น",
+    joining: "กำลังเข้าร่วม…",
+    join: "เข้าร่วมงาน",
+  },
+};
 
 type GuestAppProps = { event: PublicEvent; initialSession: GuestSession | null };
 
@@ -33,8 +113,14 @@ export function GuestApp(props: GuestAppProps) {
     <div
       style={style}
       data-theme={props.event.appearance.theme}
-      className={`guest-page flex flex-1 flex-col ${branding ? BRAND_FONT_CLASS[branding.fontId] : ""}`}
+      className={`guest-page relative flex flex-1 flex-col ${branding ? BRAND_FONT_CLASS[branding.fontId] : ""}`}
     >
+      <Suspense>
+        <LanguageSwitch
+          tone={props.event.appearance.header === "hero" ? "dark" : "light"}
+          className="absolute top-3 right-3 z-20"
+        />
+      </Suspense>
       <GuestContent {...props} />
       <LegalFooter />
     </div>
@@ -42,6 +128,8 @@ export function GuestApp(props: GuestAppProps) {
 }
 
 function GuestContent({ event, initialSession }: GuestAppProps) {
+  const locale = useLocale();
+  const t = T[locale];
   const [session, setSession] = useState(initialSession);
   const [displayName, setDisplayName] = useState(initialSession?.displayName ?? "");
   const [uploaded, setUploaded] = useState<PublicPhoto[]>([]);
@@ -120,7 +208,7 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
     return <PasswordGate event={event} onJoined={setSession} />;
   }
 
-  const date = new Date(event.date).toLocaleDateString("th-TH", { dateStyle: "long" });
+  const date = new Date(event.date).toLocaleDateString(INTL_LOCALE[locale], { dateStyle: "long", timeZone: "UTC" });
   const appearance = event.appearance;
 
   return (
@@ -130,13 +218,13 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
       {appearance.header !== "hero" && <EventHeader event={event} date={date} appearance={appearance} />}
       {event.hasInfo && (
         <Link
-          href={`/e/${event.slug}/info`}
+          href={localePath(locale, `/e/${event.slug}/info`)}
           className={`flex items-center justify-between gap-3 rounded-2xl bg-card px-4 py-3 text-sm shadow-sm ring-1 ring-line ${
             appearance.header === "hero" ? "mb-3" : "mt-4"
           }`}
         >
           <span className="flex items-center gap-2 font-medium">
-            <MapPin className="h-4 w-4 text-brand" /> รายละเอียดงาน กำหนดการ และแผนที่
+            <MapPin className="h-4 w-4 text-brand" /> {t.infoLink}
           </span>
           <ChevronRight className="h-4 w-4 text-muted" />
         </Link>
@@ -151,7 +239,7 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={40}
-              placeholder="ชื่อของคุณ (ไม่บังคับ)"
+              placeholder={t.yourName}
               className="w-full rounded-xl border border-line px-4 py-3 text-base outline-none focus:border-brand bg-transparent placeholder:text-muted"
             />
           )}
@@ -164,13 +252,13 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
           />
           {underReview > 0 && (
             <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {underReview} รูปถูกซ่อนไว้ให้เจ้าภาพตรวจสอบก่อนแสดง
+              {t.underReview(underReview)}
             </p>
           )}
           <p className="text-xs text-muted">
-            รูปที่อัปโหลดจะแสดงให้ผู้ร่วมงานนี้เห็น ข้อมูลตำแหน่งในรูปถูกลบอัตโนมัติ ·{" "}
-            <Link href="/privacy" className="underline">
-              นโยบายความเป็นส่วนตัว
+            {t.uploadNote} ·{" "}
+            <Link href={localePath(locale, "/privacy")} className="underline">
+              {t.privacy}
             </Link>
           </p>
         </section>
@@ -178,7 +266,7 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
         <p
           className={`rounded-2xl bg-card px-4 py-3 text-sm text-ink/70 shadow-sm ring-1 ring-line ${appearance.header === "hero" ? "" : "mt-6"}`}
         >
-          ปิดรับการอัปโหลดรูปสำหรับงานนี้แล้ว
+          {t.uploadsClosed}
         </p>
       )}
 
@@ -199,7 +287,7 @@ function GuestContent({ event, initialSession }: GuestAppProps) {
         defaultTab={appearance.defaultTab}
         shareInfo={{
           title: event.title,
-          text: `รูปจากงาน ${event.title}`,
+          text: t.shareText(event.title),
           url: typeof window === "undefined" ? `/e/${event.slug}` : `${window.location.origin}/e/${event.slug}`,
         }}
       />
@@ -222,6 +310,8 @@ function NotifyMe({
   ensureSession: () => Promise<GuestSession>;
   onChange: (email: string | null) => void;
 }) {
+  const locale = useLocale();
+  const t = T[locale];
   const [value, setValue] = useState("");
   const [state, setState] = useState<"idle" | "saving" | "error">("idle");
 
@@ -235,7 +325,7 @@ function NotifyMe({
       setState("idle");
     } catch {
       setState("idle");
-      showError("บันทึกอีเมลไม่สำเร็จ ลองอีกครั้ง");
+      showError(t.notifyFailed);
     }
   }
 
@@ -247,7 +337,7 @@ function NotifyMe({
       setState("idle");
     } catch {
       setState("idle");
-      showError("บันทึกอีเมลไม่สำเร็จ ลองอีกครั้ง");
+      showError(t.notifyFailed);
     }
   }
 
@@ -255,21 +345,21 @@ function NotifyMe({
     <section className="mt-6 rounded-xl border border-line p-4 bg-transparent placeholder:text-muted">
       {email ? (
         <p className="text-sm text-ink/85">
-          เราจะแจ้งไปที่ <b>{email}</b> เมื่อรูปจากช่างภาพพร้อม ·{" "}
+          {t.notifyAt[0]} <b>{email}</b> {t.notifyAt[1]} ·{" "}
           <button type="button" onClick={unsubscribe} disabled={state === "saving"} className="underline">
-            ยกเลิก
+            {t.cancel}
           </button>
         </p>
       ) : (
         <form onSubmit={subscribe}>
-          <p className="text-sm font-medium">อยากได้รูปจากช่างภาพ? ให้เราแจ้งทางอีเมล</p>
+          <p className="text-sm font-medium">{t.notifyTitle}</p>
           <div className="mt-2 flex gap-2">
             <input
               type="email"
               required
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="อีเมลของคุณ"
+              placeholder={t.yourEmail}
               autoComplete="email"
               className="min-w-0 flex-1 rounded-xl border border-line px-3 py-2 text-base outline-none focus:border-brand bg-transparent placeholder:text-muted"
             />
@@ -277,11 +367,11 @@ function NotifyMe({
               disabled={state === "saving"}
               className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast disabled:opacity-50"
             >
-              แจ้งฉัน
+              {t.notifyMe}
             </button>
           </div>
           <p className="mt-2 text-xs text-muted">
-            ใช้ส่งแจ้งเตือนของงานนี้เท่านั้น ยกเลิกได้ทุกเมื่อ และลบเมื่ออัลบั้มหมดอายุ
+            {t.notifyNote}
           </p>
         </form>
       )}
@@ -290,6 +380,8 @@ function NotifyMe({
 }
 
 function ConsentSheet({ onAnswer }: { onAnswer: (accepted: boolean) => void }) {
+  const locale = useLocale();
+  const t = T[locale];
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => onAnswer(false)}>
       <div
@@ -298,33 +390,32 @@ function ConsentSheet({ onAnswer }: { onAnswer: (accepted: boolean) => void }) {
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-t-2xl bg-card p-5 sm:rounded-2xl"
       >
-        <h2 className="text-lg font-semibold">ก่อนแชร์รูป</h2>
+        <h2 className="text-lg font-semibold">{t.consentTitle}</h2>
         <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-ink/85">
-          <li>รูปที่คุณอัปโหลดจะแสดงให้ผู้ร่วมงานนี้และเจ้าภาพเห็น และเก็บไว้ตามระยะเวลาของงาน</li>
-          <li>ระบบลบข้อมูลตำแหน่ง (GPS) ออกจากรูปก่อนอัปโหลด</li>
-          <li>คุณลบรูปของตัวเองได้ทุกเมื่อ และขอให้ลบรูปที่มีคุณอยู่ได้</li>
-          <li>โปรดอัปโหลดเฉพาะรูปที่เหมาะสมและคนในรูปยินดีให้แชร์</li>
+          {t.consentPoints.map((point) => (
+            <li key={point}>{point}</li>
+          ))}
         </ul>
         <p className="mt-3 text-xs text-muted">
-          อ่านรายละเอียดใน{" "}
-          <Link href="/privacy" target="_blank" className="underline">
-            นโยบายความเป็นส่วนตัว
+          {t.readMore}{" "}
+          <Link href={localePath(locale, "/privacy")} target="_blank" className="underline">
+            {t.privacy}
           </Link>{" "}
-          และ{" "}
-          <Link href="/terms" target="_blank" className="underline">
-            ข้อกำหนดการใช้งาน
+          {t.and}{" "}
+          <Link href={localePath(locale, "/terms")} target="_blank" className="underline">
+            {t.terms}
           </Link>
         </p>
         <div className="mt-5 flex gap-2">
           <button type="button" onClick={() => onAnswer(false)} className="flex-1 rounded-xl border border-line py-3 bg-transparent placeholder:text-muted">
-            ยกเลิก
+            {t.cancel}
           </button>
           <button
             type="button"
             onClick={() => onAnswer(true)}
             className="flex-1 rounded-xl bg-brand py-3 font-medium text-brand-contrast"
           >
-            ยอมรับและเลือกรูป
+            {t.acceptAndPick}
           </button>
         </div>
       </div>
@@ -333,9 +424,10 @@ function ConsentSheet({ onAnswer }: { onAnswer: (accepted: boolean) => void }) {
 }
 
 function Sponsors({ sponsors }: { sponsors: NonNullable<PublicEvent["branding"]>["sponsors"] }) {
+  const t = T[useLocale()];
   return (
     <section className="mt-12 border-t border-line pt-6">
-      <h2 className="text-center text-sm text-muted">ขอบคุณผู้สนับสนุน</h2>
+      <h2 className="text-center text-sm text-muted">{t.sponsors}</h2>
       <ul className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-5">
         {sponsors.map((sponsor) => {
           const logo = (
@@ -360,6 +452,8 @@ function Sponsors({ sponsors }: { sponsors: NonNullable<PublicEvent["branding"]>
 }
 
 function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: GuestSession) => void }) {
+  const locale = useLocale();
+  const t = T[locale];
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [accepted, setAccepted] = useState(false);
@@ -374,10 +468,10 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
     } catch (err) {
       showError(
         err instanceof ApiError && err.code === "invalid_password"
-          ? "รหัสผ่านไม่ถูกต้อง"
+          ? t.wrongPassword
           : err instanceof ApiError && err.code === "event_full"
-            ? "งานนี้มีแขกครบจำนวนแล้ว"
-            : "เกิดข้อผิดพลาด ลองอีกครั้ง",
+            ? t.eventFull
+            : t.failed,
       );
     } finally {
       setPending(false);
@@ -387,7 +481,7 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-4 py-12">
       <h1 className="text-2xl font-semibold tracking-tight">{event.title}</h1>
-      <p className="mt-2 text-sm text-muted">งานนี้ต้องใช้รหัสผ่านเพื่อเข้าชมและอัปโหลดรูป</p>
+      <p className="mt-2 text-sm text-muted">{t.passwordIntro}</p>
       <form onSubmit={submit} className="mt-6 space-y-3">
         <input
           type="password"
@@ -395,14 +489,14 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
           autoFocus
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="รหัสผ่านงาน"
+          placeholder={t.eventPassword}
           className="w-full rounded-xl border border-line px-4 py-3 text-base outline-none focus:border-brand bg-transparent placeholder:text-muted"
         />
         <input
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           maxLength={40}
-          placeholder="ชื่อของคุณ (ไม่บังคับ)"
+          placeholder={t.yourName}
           className="w-full rounded-xl border border-line px-4 py-3 text-base outline-none focus:border-brand bg-transparent placeholder:text-muted"
         />
         <label className="flex items-start gap-2 text-sm text-ink/70">
@@ -414,18 +508,18 @@ function PasswordGate({ event, onJoined }: { event: PublicEvent; onJoined: (s: G
             className="mt-1 accent-primary"
           />
           <span>
-            ฉันยอมรับ{" "}
-            <Link href="/privacy" target="_blank" className="underline">
-              นโยบายความเป็นส่วนตัว
+            {t.iAccept}{" "}
+            <Link href={localePath(locale, "/privacy")} target="_blank" className="underline">
+              {t.privacy}
             </Link>{" "}
-            และเข้าใจว่ารูปที่อัปโหลดจะแสดงให้ผู้ร่วมงานนี้เห็น
+            {t.iUnderstand}
           </span>
         </label>
         <button
           disabled={pending || !accepted}
           className="w-full rounded-xl bg-brand px-4 py-3 font-medium text-brand-contrast disabled:opacity-50"
         >
-          {pending ? "กำลังเข้าร่วม…" : "เข้าร่วมงาน"}
+          {pending ? t.joining : t.join}
         </button>
       </form>
     </main>
