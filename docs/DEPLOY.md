@@ -160,7 +160,8 @@ error 0%, API p95 79 ms ค่าบน Cloud Run + Atlas + R2 จะต่า�
 2. Developers → Webhooks → Add endpoint
    - URL: `https://<SERVICE_URL>/api/stripe/webhook`
    - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-     `checkout.session.async_payment_failed`, `checkout.session.expired`
+     `checkout.session.async_payment_failed`, `checkout.session.expired`,
+     `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`
    - คัดลอก Signing secret (`whsec_...`)
 3. เก็บ key ใน Secret Manager (เริ่มจาก test mode `sk_test_...` ก่อน) แล้วผูกเข้ากับ service:
 
@@ -181,6 +182,13 @@ gcloud run services update tohsevent --region asia-southeast1 \
 
 webhook เป็นตัวยืนยันหลัก ส่วนหน้า `/dashboard/events/:id/plan?checkout=success` จะดึงสถานะจาก Stripe ซ้ำอีกรอบ
 เผื่อ webhook มาช้า การอัปเกรดแต่ละครั้งถูก apply เพียงครั้งเดียวแม้ webhook จะถูกส่งซ้ำ
+(บันทึกว่าจ่ายแล้วกับอัปเกรดงานอยู่ใน transaction เดียวกัน ถ้าพังกลางทาง webhook รอบถัดไปจะ apply ให้ใหม่)
+
+เปิด checkout ใหม่ระบบจะ expire checkout เก่าที่ยังค้างของงานเดียวกัน ถ้ามีรายการที่จ่ายเข้ามาทีหลัง
+(เช่น QR PromptPay ที่เปิดค้างไว้) แล้วไม่ใช่การอัปเกรดแล้ว ระบบคืนเงินเต็มจำนวนอัตโนมัติ ถ้าราคาส่วนต่างเปลี่ยน
+เพราะมีการอัปเกรดอื่นเข้ามาก่อน ระบบคืนส่วนที่จ่ายเกิน การคืนเงินจาก Dashboard และ dispute ถูกบันทึกไว้ที่ payment
+และ audit log แต่แพ็กเกจของงานไม่ถูกลดอัตโนมัติ dispute จะขึ้นเป็น error ใน Cloud Logging (`stripe dispute`)
+ต้องตอบใน Stripe Dashboard ก่อนกำหนด
 
 ## 9. ฟีเจอร์เสริม (เปิดเมื่อพร้อม)
 

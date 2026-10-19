@@ -69,6 +69,7 @@ export async function ensureIndexes(): Promise<void> {
     events.createIndex({ status: 1, expiresAt: 1 }),
     payments.createIndex({ stripeSessionId: 1 }, { unique: true, partialFilterExpression: { stripeSessionId: { $type: "string" } } }),
     payments.createIndex({ eventId: 1, createdAt: -1 }),
+    payments.createIndex({ stripePaymentIntentId: 1 }, { partialFilterExpression: { stripePaymentIntentId: { $type: "string" } } }),
     guestSessions.createIndex({ eventId: 1, createdAt: -1 }),
     guestSessions.createIndex({ eventId: 1, "notify.notifiedAt": 1 }, { partialFilterExpression: { "notify.email": { $exists: true } } }),
     // Gallery listing: newest first per event + source, cursor on _id.

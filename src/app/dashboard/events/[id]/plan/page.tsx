@@ -46,7 +46,9 @@ async function PlanDetails({ params, searchParams }: PageProps<"/dashboard/event
         <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           {paymentStatus === "paid"
             ? `ชำระเงินเรียบร้อย งานนี้ใช้แพ็กเกจ ${plan.name} แล้ว`
-            : "กำลังยืนยันการชำระเงิน (PromptPay อาจใช้เวลาสักครู่) รีเฟรชหน้านี้อีกครั้งในอีกไม่กี่นาที"}
+            : paymentStatus === "refunded"
+              ? "งานนี้มีแพ็กเกจนี้หรือสูงกว่าอยู่แล้ว ระบบคืนเงินรายการนี้เต็มจำนวนให้อัตโนมัติ"
+              : "กำลังยืนยันการชำระเงิน (PromptPay อาจใช้เวลาสักครู่) รีเฟรชหน้านี้อีกครั้งในอีกไม่กี่นาที"}
         </p>
       )}
       {checkout === "cancelled" && (

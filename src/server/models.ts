@@ -232,9 +232,21 @@ export interface PaymentDoc {
   amountThb: number;
   provider: "stripe";
   stripeSessionId: string | null;
-  status: "pending" | "paid" | "failed" | "expired";
+  /** Set when the checkout is paid; refunds and disputes arrive keyed by it. */
+  stripePaymentIntentId?: string | null;
+  /** "refunded" = refunded in full (automatically or from the Stripe Dashboard). */
+  status: "pending" | "paid" | "failed" | "expired" | "refunded";
   createdAt: Date;
   paidAt: Date | null;
+  /**
+   * Money we give back on our own when the payment lands: the event already has this package or
+   * a higher one ("superseded"), or another upgrade landed first so the price changed ("price_changed").
+   * Recorded with the plan update; the Stripe refund is issued right after it commits.
+   */
+  autoRefund?: { thb: number; reason: "superseded" | "price_changed"; stripeRefundId: string | null };
+  /** Total refunded so far, in baht (from Stripe's charge). */
+  refundedThb?: number;
+  dispute?: { id: string; status: string; reason: string; amountThb: number; updatedAt: Date };
 }
 
 export interface GuestSessionDoc {
