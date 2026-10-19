@@ -46,6 +46,8 @@ export async function albumZip(event: EventDoc, source: PhotoSource, part: numbe
     }
   }
 
+  // No Content-Length on the response: Cloud Run caps responses of a declared size at 32 MiB,
+  // while chunked (streamed) responses can be any size, and albums with videos run far past it.
   const zip = downloadZip(files(), {
     length: predictLength(entries.map(({ name, lastModified, size }) => ({ name, lastModified, size }))),
   });
@@ -53,7 +55,6 @@ export async function albumZip(event: EventDoc, source: PhotoSource, part: numbe
   return new Response(zip.body, {
     headers: {
       "Content-Type": "application/zip",
-      "Content-Length": zip.headers.get("Content-Length") ?? "",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "no-store",
     },
