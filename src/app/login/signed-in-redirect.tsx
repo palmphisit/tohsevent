@@ -14,7 +14,9 @@ export async function SignedInRedirect({
   searchParams: Promise<{ next?: string | string[] }>;
   children: React.ReactNode;
 }) {
-  const [{ next }, session] = await Promise.all([searchParams, auth().api.getSession({ headers: await headers() })]);
+  // Request data first: it makes the page dynamic before auth() reads env/secrets (none exist at build time).
+  const [{ next }, requestHeaders] = await Promise.all([searchParams, headers()]);
+  const session = await auth().api.getSession({ headers: requestHeaders });
   if (session) redirect(safeNext(typeof next === "string" ? next : null));
   return children;
 }
