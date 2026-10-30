@@ -233,7 +233,10 @@ export async function createGuestUploads(
   files: UploadRequestFile[],
   options: { instagram?: string } = {},
 ): Promise<PresignedUpload[]> {
-  if (!event.settings.guestUpload) throw new HttpError(403, "uploads_disabled", "Uploads are closed for this event");
+  // Instagram share has its own switch (slideshow settings): it works even when album uploads are closed.
+  if (options.instagram === undefined && !event.settings.guestUpload) {
+    throw new HttpError(403, "uploads_disabled", "Uploads are closed for this event");
+  }
   assertFilesAllowed(event, files);
   const instagram = options.instagram === undefined ? undefined : await checkShoutout(event, guestSessionId, files, options.instagram);
 

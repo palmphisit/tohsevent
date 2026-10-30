@@ -175,7 +175,7 @@ export function EventForm({ event }: { event?: HostEvent }) {
             checked={guestUpload}
             onChange={setGuestUpload}
             label="เปิดให้แขกอัปโหลดรูป"
-            hint="ปิดเมื่องานจบแล้ว แขกจะยังดูและเซฟรูปได้"
+            hint="ปิดเมื่องานจบแล้ว แขกจะยังดูและเซฟรูปได้ · แชร์ Instagram ขึ้นจอตั้งเปิด/ปิดแยกที่หน้า Slideshow"
           />
           <Toggle
             checked={status === "live"}
