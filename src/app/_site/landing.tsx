@@ -22,6 +22,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { BrandLogo, BrandMark } from "@/components/brand";
 import { LanguageSwitch } from "@/components/language-switch";
+import { HeaderAuth } from "./header-auth";
 import { CUSTOM_PLAN } from "@/lib/custom-plan";
 import { INTL_LOCALE, localePath, type Locale } from "@/lib/i18n";
 import { LEGAL } from "@/lib/legal";
@@ -47,6 +48,8 @@ const COPY = {
       ["#faq", "FAQ"],
     ],
     signIn: "Sign in",
+    dashboard: "My events",
+    newEvent: "Create an event",
     startFree: "Create an event free",
     heroBadge: "Event photo sharing with a QR code",
     heroTitle: ["Every photo from guests and photographers,", "in one album"],
@@ -149,6 +152,8 @@ const COPY = {
       ["#faq", "คำถาม"],
     ],
     signIn: "เข้าสู่ระบบ",
+    dashboard: "งานของฉัน",
+    newEvent: "สร้างงานใหม่",
     startFree: "สร้างงานฟรี",
     heroBadge: "แชร์รูปงานอีเวนต์ด้วย QR Code",
     heroTitle: ["รวมทุกรูปจากแขกและช่างภาพ", "ไว้ในอัลบั้มเดียว"],
@@ -531,15 +536,11 @@ function SiteHeader({ t, locale, startHref }: { t: Copy; locale: Locale; startHr
           <Suspense>
             <LanguageSwitch className="hidden sm:inline-flex" />
           </Suspense>
-          <Link
-            href={`${localePath(locale, "/login")}?next=/dashboard`}
-            className="hidden rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 sm:block"
-          >
-            {t.signIn}
-          </Link>
-          <Link href={startHref} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
-            {t.startFree}
-          </Link>
+          <HeaderAuth
+            signInHref={`${localePath(locale, "/login")}?next=/dashboard`}
+            startHref={startHref}
+            labels={{ signIn: t.signIn, startFree: t.startFree, dashboard: t.dashboard, newEvent: t.newEvent }}
+          />
         </div>
       </div>
     </header>

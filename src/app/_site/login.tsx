@@ -8,6 +8,7 @@ import { GoogleSignIn } from "../login/google-sign-in";
 import { LanguageSwitch } from "@/components/language-switch";
 import { localePath, type Locale } from "@/lib/i18n";
 import { LoginForm } from "../login/login-form";
+import { SignedInRedirect } from "../login/signed-in-redirect";
 
 
 const COPY = {
@@ -35,7 +36,20 @@ const COPY = {
   },
 };
 
-export function LoginView({ locale }: { locale: Locale }) {
+type SearchParams = Promise<{ next?: string | string[] }>;
+
+/** Sign-in page; someone already signed in goes straight on to `next` (or the dashboard). */
+export function LoginView({ locale, searchParams }: { locale: Locale; searchParams: SearchParams }) {
+  return (
+    <Suspense fallback={<div className="flex-1 bg-slate-50" />}>
+      <SignedInRedirect searchParams={searchParams}>
+        <LoginContent locale={locale} />
+      </SignedInRedirect>
+    </Suspense>
+  );
+}
+
+function LoginContent({ locale }: { locale: Locale }) {
   const t = COPY[locale];
   return (
     <div className="grid flex-1 md:grid-cols-2">
