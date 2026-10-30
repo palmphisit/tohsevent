@@ -7,6 +7,7 @@ import { prepareImage, type PreparedImage } from "@/lib/image";
 import { listPending, removePending, savePending, setPendingPhotoId } from "@/lib/upload-store";
 import { showError } from "@/lib/error-popup";
 import { useLocale } from "@/lib/use-locale";
+import { isRawFile, RAW_ACCEPT, RawRejected } from "@/lib/raw";
 import { isVideoFile, prepareVideo, VideoRejected, type VideoLimits } from "@/lib/video";
 import type { PresignedUpload } from "@/server/services/photos";
 
@@ -52,6 +53,7 @@ const T = {
       video_too_large: "The video file is too large",
       video_too_long: "The video is too long",
       video_unsupported: "This video file isn't supported",
+      raw_unsupported: "This RAW file has no preview we can use. Export it as JPEG and try again",
       quota_exceeded: "You've reached this event's upload limit",
       uploads_disabled: "This event is no longer accepting photos",
       photo_limit_reached: "This album is full",
@@ -90,6 +92,7 @@ const T = {
       video_too_large: "วิดีโอไฟล์ใหญ่เกินกำหนด",
       video_too_long: "วิดีโอยาวเกินกำหนด",
       video_unsupported: "ไฟล์วิดีโอนี้ไม่รองรับ",
+      raw_unsupported: "ไฟล์ RAW นี้ไม่มีภาพตัวอย่างที่ใช้ได้ ลอง export เป็น JPEG แล้วอัปโหลดใหม่",
       quota_exceeded: "อัปโหลดครบจำนวนที่งานกำหนดแล้ว",
       uploads_disabled: "งานนี้ปิดรับรูปแล้ว",
       photo_limit_reached: "อัลบั้มนี้เต็มแล้ว",
@@ -138,14 +141,14 @@ function formatSize(bytes: number): string {
 }
 
 function errorMessage(error: unknown, t: Messages): string {
-  if (error instanceof VideoRejected) return t.errors[error.code];
+  if (error instanceof VideoRejected || error instanceof RawRejected) return t.errors[error.code];
   if (error instanceof ApiError && t.errors[error.code]) return t.errors[error.code];
   return t.failed;
 }
 
 /** Errors that retrying will not fix; such files are dropped from the resume store. */
 function isPermanent(error: unknown): boolean {
-  if (error instanceof VideoRejected) return true;
+  if (error instanceof VideoRejected || error instanceof RawRejected) return true;
   return (
     error instanceof ApiError &&
     ["quota_exceeded", "uploads_disabled", "photo_limit_reached", "storage_full", "event_full", ...VIDEO_ERROR_CODES].includes(
@@ -154,11 +157,11 @@ function isPermanent(error: unknown): boolean {
   );
 }
 
-/** Photos only: video clips are too large to keep in the browser's storage for resuming. */
+/** Photos only: video clips and RAW files are too large to keep in the browser's storage for resuming. */
 function persistFiles(scope: string, entries: { id: string; file: File }[]) {
   const addedAt = Date.now();
   entries.forEach((e, i) => {
-    if (!isVideoFile(e.file)) void savePending({ id: e.id, scope, file: e.file, name: e.file.name, addedAt: addedAt + i });
+    if (!isVideoFile(e.file) && !isRawFile(e.file)) void savePending({ id: e.id, scope, file: e.file, name: e.file.name, addedAt: addedAt + i });
   });
 }
 
@@ -193,7 +196,8 @@ async function uploadItem(
     update({ photoId, image: undefined, reservation: undefined });
     onPhotoReady(photo);
   }
-  if (target.uploadOriginal && !item.isVideo) {
+  // RAW files are published as a 2K JPEG only; they are never kept as the original.
+  if (target.uploadOriginal && !item.isVideo && !isRawFile(item.file)) {
     update({ status: "original", progress: 0, error: undefined });
     await target.uploadOriginal(photoId, item.file, (progress) => update({ progress }));
   }
@@ -398,11 +402,11 @@ export function Uploader({
 
   return (
     <div>
-      {/* Wildcard types only: they open the phone's photo picker (specific types fall back to a file browser). */}
+      {/* Android: wildcard types only, so the photo picker opens (specific types fall back to a file browser). Elsewhere also list RAW extensions, which some OSes don't count as image/*. */}
       <input
         ref={inputRef}
         type="file"
-        accept={target.video ? "image/*,video/*" : "image/*"}
+        accept={`${target.video ? "image/*,video/*" : "image/*"}${android ? "" : `,${RAW_ACCEPT}`}`}
         multiple
         hidden
         onChange={(e) => onFiles(e.currentTarget)}

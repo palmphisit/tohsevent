@@ -2,6 +2,7 @@
 // re-encode as JPEG. Re-encoding through <canvas> also strips EXIF metadata such as
 // GPS location, so guests never leak where a photo was taken.
 import type { VideoContentType } from "@/server/models";
+import { decodeRaw, isRawFile, RAW_MAX_EDGE } from "./raw";
 
 export const IMAGE_VARIANTS = {
   display: { maxEdge: 2560, quality: 0.85 },
@@ -50,6 +51,7 @@ function drawWatermark(source: HTMLCanvasElement): HTMLCanvasElement {
 type Decoded = { source: CanvasImageSource; width: number; height: number; release: () => void };
 
 async function decode(file: Blob): Promise<Decoded> {
+  if (isRawFile(file)) return decodeRaw(file);
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
     return { source: bitmap, width: bitmap.width, height: bitmap.height, release: () => bitmap.close() };
@@ -93,7 +95,9 @@ export function toJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob
 export async function prepareImage(file: Blob, options: { watermark?: boolean } = {}): Promise<PreparedImage> {
   const decoded = await decode(file);
   try {
-    const size = fit(decoded.width, decoded.height, IMAGE_VARIANTS.display.maxEdge);
+    // RAW files are published at up to 2K (the RAW itself is never uploaded).
+    const maxEdge = isRawFile(file) ? RAW_MAX_EDGE : IMAGE_VARIANTS.display.maxEdge;
+    const size = fit(decoded.width, decoded.height, maxEdge);
     const displayCanvas = draw(decoded.source, size.width, size.height);
     const thumbSize = fit(size.width, size.height, IMAGE_VARIANTS.thumb.maxEdge);
     const thumbCanvas = draw(displayCanvas, thumbSize.width, thumbSize.height);
